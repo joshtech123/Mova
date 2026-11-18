@@ -38,7 +38,12 @@ const AppContent: React.FC = () => {
     return <LandingPage />;
   }
 
-  if (currentPage === 'admin' && user?.role !== 'admin') {\n    setCurrentPage('dashboard');\n    return null;\n  }\n\n  // Get Page Title for Navbar when inside internal pages
+  if (currentPage === 'admin' && user?.role !== 'admin') {
+    setCurrentPage('dashboard');
+    return null;
+  }
+
+  // Get Page Title for Navbar when inside internal pages
   let pageTitle = '';
   let pageSubtitle = '';
   switch (currentPage) {
