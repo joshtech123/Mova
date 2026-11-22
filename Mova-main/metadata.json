@@ -1,6 +1,0 @@
-{
-  "name": "MOVA - Digital Entertainment & Rewards Platform",
-  "description": "MOVA connects communities globally with entertainment, rewarding activities, verified tasks, and premium membership opportunities.",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
-}
