@@ -9,6 +9,7 @@ export interface User {
   country: string;
   countryCode: string;
   membershipStatus: MembershipStatus;
+  isPremium: boolean;
   activatedAt?: string;
   referralCode: string;
   referredBy?: string;

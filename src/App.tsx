@@ -26,6 +26,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
 import { WelcomeGuide } from './components/onboarding/WelcomeGuide';
 import { SupportAssistant } from './components/support/SupportAssistant';
+import { WelcomeBonusCelebration } from './components/WelcomeBonusCelebration';
 
 const AppContent: React.FC = () => {
   const { currentPage, user, setCurrentPage } = useApp();
@@ -171,6 +172,7 @@ const AppContent: React.FC = () => {
 
       {/* Toast Notification Container */}
       <ToastContainer />
+      <WelcomeBonusCelebration />
       {user && <WelcomeGuide />}
       {user && <SupportAssistant />}
     </div>

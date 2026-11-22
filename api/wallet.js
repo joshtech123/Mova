@@ -26,7 +26,7 @@ export default async function handler(req, res) {
     const approved = rows.filter(r => r.status === 'approved');
     const toNaira = kobo => Number(kobo || 0) / 100;
     const sum = list => list.reduce((n, r) => n + Number(r.amount_kobo || 0), 0);
-    const task = sum(approved.filter(r => !['referral_direct','referral_indirect_1','referral_indirect_2'].includes(r.activity_type)));
+    const task = sum(approved.filter(r => !['referral_direct','referral_indirect_1','referral_indirect_2','welcome_bonus'].includes(r.activity_type)));
     const referral = sum(approved.filter(r => ['referral_direct','referral_indirect_1','referral_indirect_2'].includes(r.activity_type)));
     const welcome = sum(approved.filter(r => r.activity_type === 'welcome_bonus'));
     const total = sum(approved);

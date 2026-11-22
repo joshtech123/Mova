@@ -40,6 +40,8 @@ interface AppContextType {
   settings: PlatformSettings;
   toasts: ToastMessage[];
   unreadNotifications: number;
+  welcomeCelebration: { fullName: string; amount: number } | null;
+  dismissWelcomeCelebration: () => void;
   // Navigation helper
   currentPage: string;
   setCurrentPage: (page: string) => void;
@@ -83,6 +85,7 @@ interface AppContextType {
 }
 
 const STORAGE_KEY = 'mova_platform_state_v1';
+const PENDING_WELCOME_EMAIL_KEY = 'mova_pending_welcome_email_v1';
 
 const PAGE_PATHS: Record<string, string> = {
   landing: '/', login: '/login', register: '/create', forgot: '/forgot-password',
@@ -167,20 +170,48 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<PlatformSettings>(INITIAL_SETTINGS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState<number>(2);
+  const [welcomeCelebration, setWelcomeCelebration] = useState<{ fullName: string; amount: number } | null>(null);
 
-  // Restore the authenticated member and load financial data only from the server ledger.
+  const dismissWelcomeCelebration = () => setWelcomeCelebration(null);
+
+  // Restore the authenticated member. Wallet loading is independent so a temporary
+  // wallet/API outage never signs a valid member out of their account.
   useEffect(() => {
     const session = getSavedSession();
     if (!session?.access_token || !session?.user?.id) return;
     (async () => {
       try {
         const profile = await loadProfile(session.user.id, session.access_token);
-        const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: DEFAULT_WALLET, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
-        const snapshot = await fetchWalletSnapshot(session.access_token);
-        setUser(mapped); setWallet(snapshot.wallet); setTransactions(snapshot.transactions); setCurrentPage('dashboard');
+        const mapped: User = {
+          id: profile.id,
+          fullName: profile.full_name,
+          username: profile.username,
+          email: session.user.email || '',
+          phone: profile.phone || '',
+          country: profile.country || 'Nigeria',
+          countryCode: 'NG',
+          role: profile.role,
+          membershipStatus: profile.membership_status === 'premium' ? 'premium' : 'unactivated',
+        isPremium: profile.membership_status === 'premium',
+          referralCode: profile.referral_code,
+          wallets: DEFAULT_WALLET,
+          stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 },
+          createdAt: profile.created_at,
+        };
+        setUser(mapped);
+        setCurrentPage('dashboard');
+        try {
+          const snapshot = await fetchWalletSnapshot(session.access_token);
+          setWallet(snapshot.wallet);
+          setTransactions(snapshot.transactions);
+        } catch (walletError) {
+          addToast({ type: 'error', title: 'Wallet temporarily unavailable', message: walletError instanceof Error ? walletError.message : 'Your account is signed in, but wallet details could not be loaded.' });
+        }
       } catch {
         saveSession(null);
-        setUser(null); setWallet(DEFAULT_WALLET); setTransactions([]);
+        setUser(null);
+        setWallet(DEFAULT_WALLET);
+        setTransactions([]);
       }
     })();
   }, []);
@@ -244,27 +275,95 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     try {
       const session = await signIn(email.trim(), password);
       const profile = await loadProfile(session.user.id, session.access_token);
-      const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || email, phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
+      const mapped: User = {
+        id: profile.id,
+        fullName: profile.full_name,
+        username: profile.username,
+        email: session.user.email || email,
+        phone: profile.phone || '',
+        country: profile.country || 'Nigeria',
+        countryCode: 'NG',
+        role: profile.role,
+        membershipStatus: profile.membership_status === 'premium' ? 'premium' : 'unactivated',
+        isPremium: profile.membership_status === 'premium',
+        referralCode: profile.referral_code,
+        createdAt: profile.created_at,
+      };
       setUser(mapped);
-      const snapshot = await fetchWalletSnapshot(session.access_token);
-      setWallet(snapshot.wallet); setTransactions(snapshot.transactions); setCurrentPage('dashboard');
+      setCurrentPage('dashboard');
+      try {
+        const snapshot = await fetchWalletSnapshot(session.access_token);
+        setWallet(snapshot.wallet);
+        setTransactions(snapshot.transactions);
+        const pendingEmail = localStorage.getItem(PENDING_WELCOME_EMAIL_KEY);
+        if (pendingEmail && pendingEmail.toLowerCase() === (session.user.email || email).toLowerCase() && snapshot.wallet.welcomePackBalance >= 9100) {
+          setWelcomeCelebration({ fullName: profile.full_name, amount: 9100 });
+          localStorage.removeItem(PENDING_WELCOME_EMAIL_KEY);
+        }
+      } catch (walletError) {
+        addToast({ type: 'error', title: 'Wallet temporarily unavailable', message: walletError instanceof Error ? walletError.message : 'You are signed in, but your wallet could not be loaded.' });
+      }
       addToast({ type: 'success', title: 'Welcome back', message: 'You are now signed in to MOVA.' });
       return true;
-    } catch (error) { addToast({ type: 'error', title: 'Sign-in failed', message: error instanceof Error ? error.message : 'Please try again.' }); return false; }
+    } catch (error) {
+      addToast({ type: 'error', title: 'Sign-in failed', message: error instanceof Error ? error.message : 'Please try again.' });
+      return false;
+    }
   };
 
   const register = async (data: Partial<User>): Promise<boolean> => {
     try {
-      const result = await signUp(data.email || '', String((data as any).password || ''), { full_name: data.fullName || '', username: data.username || '', phone: data.phone || '', country: data.country || 'Nigeria' });
-      if (!result.access_token) { addToast({ type: 'error', title: 'Email confirmation is still enabled', message: 'Turn off Confirm email in Supabase Authentication settings to allow registration without email verification.' }); return false; }
+      const result = await signUp(data.email || '', String((data as any).password || ''), {
+        full_name: data.fullName || '',
+        username: data.username || '',
+        phone: data.phone || '',
+        country: data.country || 'Nigeria',
+      });
+
+      // Supabase may require email confirmation before issuing a session. Keep a
+      // local one-time marker so the celebration can appear after their first login.
+      localStorage.setItem(PENDING_WELCOME_EMAIL_KEY, (data.email || '').toLowerCase());
+      if (!result.access_token || !result.user?.id) {
+        addToast({ type: 'info', title: 'Confirm your email', message: 'Your account has been created. Verify your email, then sign in to see your ₦9,100 welcome bonus.' });
+        return true;
+      }
+
       const profile = await loadProfile(result.user.id, result.access_token);
-      const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: result.user.email || data.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: data.countryCode || 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
+      const mapped: User = {
+        id: profile.id,
+        fullName: profile.full_name,
+        username: profile.username,
+        email: result.user.email || data.email || '',
+        phone: profile.phone || '',
+        country: profile.country || 'Nigeria',
+        countryCode: data.countryCode || 'NG',
+        role: profile.role,
+        membershipStatus: profile.membership_status === 'premium' ? 'premium' : 'unactivated',
+        isPremium: profile.membership_status === 'premium',
+        referralCode: profile.referral_code,
+        createdAt: profile.created_at,
+      };
       setUser(mapped);
-      const snapshot = await fetchWalletSnapshot(result.access_token);
-      setWallet(snapshot.wallet); setTransactions(snapshot.transactions); setCurrentPage('dashboard');
-      addToast({ type: 'success', title: 'Account created', message: 'Your MOVA account is ready. Your welcome bonus is included in your available balance.' });
+      setCurrentPage('dashboard');
+
+      try {
+        const snapshot = await fetchWalletSnapshot(result.access_token);
+        setWallet(snapshot.wallet);
+        setTransactions(snapshot.transactions);
+        if (snapshot.wallet.welcomePackBalance >= 9100) {
+          setWelcomeCelebration({ fullName: profile.full_name, amount: 9100 });
+          localStorage.removeItem(PENDING_WELCOME_EMAIL_KEY);
+        } else {
+          addToast({ type: 'info', title: 'Account created', message: 'Your account is ready. Your welcome bonus is not yet confirmed in the wallet ledger.' });
+        }
+      } catch (walletError) {
+        addToast({ type: 'error', title: 'Wallet not confirmed yet', message: walletError instanceof Error ? walletError.message : 'Your account is ready, but we could not confirm the welcome bonus. Please refresh your wallet shortly.' });
+      }
       return true;
-    } catch (error) { addToast({ type: 'error', title: 'Registration failed', message: error instanceof Error ? error.message : 'Please try again.' }); return false; }
+    } catch (error) {
+      addToast({ type: 'error', title: 'Registration failed', message: error instanceof Error ? error.message : 'Please try again.' });
+      return false;
+    }
   };
 
   const logout = async () => {
@@ -377,76 +476,62 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     accountName: string
   ): { success: boolean; message: string } => {
     if (!user) return { success: false, message: 'Please sign in to request withdrawals.' };
-
     if (user.membershipStatus !== 'premium') {
-      return {
-        success: false,
-        message: 'Account not activated. Please activate MOVA Premium (₦12,000) to enable withdrawals.',
-      };
+      return { success: false, message: 'Upgrade to MOVA Premium (₦12,000) before withdrawing your welcome bonus or other earnings.' };
+    }
+    if (!settings.withdrawalEnabled) return { success: false, message: 'Withdrawals are temporarily unavailable.' };
+    if (!Number.isFinite(amount) || amount < settings.minWithdrawal) {
+      return { success: false, message: `Minimum withdrawal amount is ₦${settings.minWithdrawal.toLocaleString()}.` };
+    }
+    if (!bankName.trim() || !/^\d{10}$/.test(accountNumber) || !accountName.trim()) {
+      return { success: false, message: 'Enter a bank, valid 10-digit account number and account holder name.' };
     }
 
-    if (amount < settings.minWithdrawal) {
-      return {
-        success: false,
-        message: `Minimum withdrawal amount is ₦${settings.minWithdrawal.toLocaleString()}.`,
-      };
+    const sourceBalance = walletSource === 'task'
+      ? wallet.taskBalance
+      : walletSource === 'referral'
+        ? wallet.referralBalance
+        : wallet.welcomePackBalance;
+    if (amount > sourceBalance) {
+      return { success: false, message: `Insufficient funds in selected wallet. Available: ₦${sourceBalance.toLocaleString()}.` };
     }
 
-    let currentSourceBalance = 0;
-    if (walletSource === 'task') currentSourceBalance = wallet.taskBalance;
-    else if (walletSource === 'referral') currentSourceBalance = wallet.referralBalance;
-    else if (walletSource === 'welcome_pack') currentSourceBalance = wallet.welcomePackBalance;
-
-    if (amount > currentSourceBalance && amount > wallet.availableBalance) {
-      return {
-        success: false,
-        message: `Insufficient funds in selected wallet balance (Available: ₦${currentSourceBalance.toLocaleString()}).`,
-      };
-    }
-
-    const ref = `MOV-WDR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    // Deduct balance
-    setWallet((prev) => ({
-      ...prev,
-      availableBalance: Math.max(0, prev.availableBalance - amount),
-      taskBalance: walletSource === 'task' ? Math.max(0, prev.taskBalance - amount) : prev.taskBalance,
-      referralBalance: walletSource === 'referral' ? Math.max(0, prev.referralBalance - amount) : prev.referralBalance,
+    const reference = `MOV-WDR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+    setWallet((previous) => ({
+      ...previous,
+      availableBalance: Math.max(0, previous.availableBalance - amount),
+      taskBalance: walletSource === 'task' ? previous.taskBalance - amount : previous.taskBalance,
+      referralBalance: walletSource === 'referral' ? previous.referralBalance - amount : previous.referralBalance,
+      welcomePackBalance: walletSource === 'welcome_pack' ? previous.welcomePackBalance - amount : previous.welcomePackBalance,
     }));
 
     const newRequest: WithdrawalRequest = {
       id: 'wdr-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
+      date,
       amount,
       walletSource,
-      bankName,
+      bankName: bankName.trim(),
       accountNumber,
-      accountName,
-      status: 'pending',
-      reference: ref,
-      notes: 'Submitted for verification. Payout processed on weekdays.',
+      accountName: accountName.trim(),
+      status: 'processing',
+      reference,
+      notes: 'Request received. Payment has not yet been sent.',
     };
-
-    setWithdrawals((prev) => [newRequest, ...prev]);
-
-    const newTx: Transaction = {
+    setWithdrawals((previous) => [newRequest, ...previous]);
+    const newTransaction: Transaction = {
       id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      description: `Withdrawal Request to ${bankName} (${accountNumber})`,
+      date,
+      description: `Withdrawal request to ${bankName.trim()} (${accountNumber})`,
       amount,
       type: 'debit',
       category: 'withdrawal',
-      reference: ref,
+      reference,
       status: 'pending',
     };
-
-    addToast({
-      type: 'success',
-      title: 'Withdrawal Submitted',
-      message: `₦${amount.toLocaleString()} payout requested to ${bankName}. Under review.`,
-    });
-
-    return { success: true, message: 'Withdrawal successfully requested.' };
+    setTransactions((previous) => [newTransaction, ...previous]);
+    addToast({ type: 'success', title: 'Withdrawal request submitted', message: `₦${amount.toLocaleString()} is now marked as Processing. Payment will be made after review.` });
+    return { success: true, message: 'Withdrawal request submitted for processing.' };
   };
 
   const applyForLoan = (
@@ -485,6 +570,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       availableBalance: prev.availableBalance + item.amount,
       taskBalance: item.walletSource === 'task' ? prev.taskBalance + item.amount : prev.taskBalance,
       referralBalance: item.walletSource === 'referral' ? prev.referralBalance + item.amount : prev.referralBalance,
+      welcomePackBalance: item.walletSource === 'welcome_pack' ? prev.welcomePackBalance + item.amount : prev.welcomePackBalance,
     }));
 
     setWithdrawals((prev) =>
@@ -610,6 +696,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         settings,
         toasts,
         unreadNotifications,
+        welcomeCelebration,
+        dismissWelcomeCelebration,
         currentPage,
         setCurrentPage,
         addToast,

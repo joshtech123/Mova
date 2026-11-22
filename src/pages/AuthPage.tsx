@@ -59,7 +59,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
     setIsSubmitting(true);
     try {
       const created = await register({ fullName, username, email, phone, country, countryCode: selectedCountry.code, referredBy: referralCode.trim() || undefined, password } as any);
-      if (!created) setError('We could not create your account. Check the error notification and try again.');
+      if (!created) {
+        setError('We could not create your account. Check the error notification and try again.');
+      } else {
+        // If email confirmation is enabled, registration succeeds without a session.
+        // Keep the member on the sign-in form so they can return after confirming.
+        setMode('login');
+        setPassword('');
+        setConfirmPassword('');
+        setError('Your account has been created. Confirm your email, then sign in to access your ₦9,100 welcome bonus.');
+      }
     } finally {
       setIsSubmitting(false);
     }
