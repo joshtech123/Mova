@@ -14,6 +14,9 @@ export interface User {
   referralCode: string;
   referredBy?: string;
   isVerified: boolean;
+  createdAt?: string;
+  wallets?: WalletState;
+  stats?: Record<string, number>;
   avatarUrl?: string;
   role: 'user' | 'admin';
 }
@@ -147,7 +150,7 @@ export interface LoanApplication {
   monthlyRepayment: number;
   totalRepayment: number;
   interestRate: number;
-  status: 'pending' | 'approved' | 'rejected' | 'disbursed';
+  status: 'pending' | 'under_review' | 'approved' | 'rejected' | 'disbursed' | 'repaid';
   bankName: string;
   accountNumber: string;
   monthlyIncome: number;

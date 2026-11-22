@@ -5,7 +5,7 @@ const SESSION_KEY = 'mova_supabase_session_v1';
 export type MovaAuthProfile = {
   id: string; full_name: string; username: string; phone: string | null; country: string;
   role: 'user' | 'admin'; membership_status: 'standard' | 'premium'; referral_code: string;
-  welcome_bonus_kobo: number; created_at: string;
+  welcome_bonus_kobo: number; created_at: string; referred_by?: string | null; premium_activated_at?: string | null;
 };
 
 function config() {

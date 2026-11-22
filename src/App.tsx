@@ -29,7 +29,7 @@ import { SupportAssistant } from './components/support/SupportAssistant';
 import { WelcomeBonusCelebration } from './components/WelcomeBonusCelebration';
 
 const AppContent: React.FC = () => {
-  const { currentPage, user, setCurrentPage } = useApp();
+  const { currentPage, user, authReady, setCurrentPage } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
@@ -58,8 +58,12 @@ const AppContent: React.FC = () => {
     return <UpgradePage />;
   }
 
-  if (currentPage === 'admin' && user?.role !== 'admin') {
-    setCurrentPage('dashboard');
+  if (currentPage === 'admin' && !authReady) {
+    return <div className="min-h-screen grid place-items-center text-sm text-slate-500">Checking MOVA administrator access...</div>;
+  }
+
+  if (currentPage === 'admin' && (!user || user.role !== 'admin')) {
+    setCurrentPage(user ? 'dashboard' : 'login');
     return null;
   }
 

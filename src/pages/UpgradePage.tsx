@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import {
   Sparkles,
@@ -8,13 +8,25 @@ import {
   Check,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
+import { getSavedSession } from '../lib/supabaseAuth';
 
 export const UpgradePage: React.FC = () => {
   const { user, settings, transactions, addToast } = useApp();
   const [transferRef, setTransferRef] = useState('');
   const [copiedAccount, setCopiedAccount] = useState(false);
+  const [receiptFile, setReceiptFile] = useState<File | null>(null);
+  const [isSubmittingPayment, setIsSubmittingPayment] = useState(false);
+  const [paymentSubmissions, setPaymentSubmissions] = useState<any[]>([]);
 
   const upgradeTransactions = transactions.filter((t) => t.category === 'upgrade');
+
+  useEffect(() => {
+    const session = getSavedSession();
+    if (!session?.access_token) return;
+    fetch('/api/mova-operations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ action: 'premium-history' }) })
+      .then(async (response) => { const result = await response.json().catch(() => ({})); if (response.ok) setPaymentSubmissions(Array.isArray(result.payments) ? result.payments : []); })
+      .catch(() => undefined);
+  }, []);
 
   const handleCopyAccount = () => {
     navigator.clipboard.writeText('3004611364');
@@ -32,22 +44,45 @@ export const UpgradePage: React.FC = () => {
       addToast({ type: 'error', title: 'Transfer reference required', message: 'Enter the transaction reference shown on your bank receipt.' });
       return;
     }
-    const telegramUsername = (import.meta.env.VITE_PAYMENT_SUPPORT_TELEGRAM || '').replace(/^@/, '').trim();
-    if (!telegramUsername) {
-      addToast({ type: 'error', title: 'Payment support is not configured', message: 'The MOVA owner must add the payment confirmer Telegram username in Vercel before members can submit proof.' });
+    const session = getSavedSession();
+    if (!session?.access_token) {
+      addToast({ type: 'error', title: 'Sign in required', message: 'Please sign in again before submitting your payment.' });
       return;
     }
-    const message = [
-      'Hello MOVA Payment Team, I have made my Premium payment.',
-      `Name: ${user?.fullName || 'Not available'}`,
-      `Email: ${user?.email || 'Not available'}`,
-      `Amount: ₦${settings.premiumFee.toLocaleString()}`,
-      `Transfer reference: ${transferRef.trim()}`,
-      'Please confirm the payment. I will attach my transfer receipt here.'
-    ].join('\\n');
-    const telegramUrl = `https://t.me/${telegramUsername}?text=${encodeURIComponent(message)}`;
-    window.open(telegramUrl, '_blank', 'noopener,noreferrer');
-    addToast({ type: 'info', title: 'Continue in Telegram', message: 'Send the prefilled message and attach your transfer receipt. Premium stays pending until payment is confirmed.' });
+    if (!receiptFile) {
+      addToast({ type: 'error', title: 'Payment receipt required', message: 'Attach your bank transfer receipt so MOVA administration can review it.' });
+      return;
+    }
+    if (!['image/jpeg', 'image/png', 'application/pdf'].includes(receiptFile.type) || receiptFile.size > 3 * 1024 * 1024) {
+      addToast({ type: 'error', title: 'Unsupported receipt', message: 'Upload a JPG, PNG or PDF receipt up to 3 MB.' });
+      return;
+    }
+    setIsSubmittingPayment(true);
+    try {
+      const proofDataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => typeof reader.result === 'string' ? resolve(reader.result) : reject(new Error('Could not read receipt.'));
+        reader.onerror = () => reject(new Error('Could not read receipt.'));
+        reader.readAsDataURL(receiptFile);
+      });
+      const response = await fetch('/api/mova-operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'premium-submit', transferReference: transferRef.trim(), proofDataUrl }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not submit payment for review.');
+      addToast({ type: 'success', title: 'Payment submitted for review', message: 'Your receipt and transfer reference have been saved. Premium will activate only after MOVA confirms the bank credit.' });
+      setTransferRef('');
+      setReceiptFile(null);
+      const refreshed = await fetch('/api/mova-operations', { method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` }, body: JSON.stringify({ action: 'premium-history' }) });
+      const history = await refreshed.json().catch(() => ({}));
+      setPaymentSubmissions(Array.isArray(history.payments) ? history.payments : []);
+    } catch (error) {
+      addToast({ type: 'error', title: 'Payment submission failed', message: error instanceof Error ? error.message : 'Please try again.' });
+    } finally {
+      setIsSubmittingPayment(false);
+    }
   };
 
   return (
@@ -159,22 +194,18 @@ export const UpgradePage: React.FC = () => {
                 <label className="block text-[11px] font-bold text-slate-600 mb-1">Transfer reference</label>
                 <input type="text" value={transferRef} onChange={(e) => setTransferRef(e.target.value)} placeholder="Enter your bank transfer reference" className="w-full px-3 py-3 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]" />
               </div>
-              <p className="text-[11px] text-slate-500">Keep your receipt. Submitting a reference does not activate Premium. The payment must be confirmed by MOVA administration.</p>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Upload transfer receipt (JPG, PNG or PDF, max 3 MB)</label>
+                <input type="file" accept="image/jpeg,image/png,application/pdf" onChange={(e) => setReceiptFile(e.target.files?.[0] || null)} className="w-full p-3 bg-white border border-slate-200 rounded-xl text-xs" />
+              </div>
+              <p className="text-[11px] text-slate-500">Your transfer reference and receipt are submitted directly to the MOVA admin review queue. This does not activate Premium automatically. The receiving bank credit must be confirmed first.</p>
             </div>
 
-            {/* Continue to Telegram payment verification */}
-            <button
-              onClick={handlePay}
-              disabled={false}
-              className="w-full py-4 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-98 bg-[#0056FD] hover:bg-[#0047D4] shadow-blue-500/30" 
-            >
+            <button onClick={handlePay} disabled={isSubmittingPayment} className="w-full py-4 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-98 bg-[#0056FD] hover:bg-[#0047D4] disabled:opacity-60 shadow-blue-500/30">
               <Sparkles className="w-4 h-4 text-orange-300" />
-              <span>Continue to Telegram and submit proof</span>
+              <span>{isSubmittingPayment ? 'Submitting payment...' : 'Submit payment for review'}</span>
             </button>
-
-            <p className="text-center text-[11px] text-slate-400">
-              Telegram will open with your payment details. Attach your receipt in the chat. MOVA Premium is activated only after the receiving account is checked.
-            </p>
+            <p className="text-center text-[11px] text-slate-400">You can follow your payment status in your MOVA account. No Telegram DM is required.</p>
           </div>
         ) : (
           <div className="pt-6 border-t border-slate-100 p-4 rounded-2xl bg-emerald-50 border border-emerald-200 text-center">
@@ -185,6 +216,11 @@ export const UpgradePage: React.FC = () => {
             </p>
           </div>
         )}
+      </div>
+
+      <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs">
+        <h3 className="font-bold text-slate-900 text-sm mb-3">Premium payment submissions</h3>
+        {paymentSubmissions.length === 0 ? <p className="text-xs text-slate-400 py-3 text-center">No payment submissions yet.</p> : <div className="divide-y divide-slate-100">{paymentSubmissions.map((payment) => <div key={payment.id} className="py-3 flex items-center justify-between gap-3 text-xs"><div><p className="font-bold text-slate-800">₦{(Number(payment.amount_kobo || 0)/100).toLocaleString()} · {payment.transfer_reference}</p><p className="text-[10px] text-slate-400 mt-1">{new Date(payment.created_at).toLocaleString()}</p>{payment.admin_notes && <p className="text-[11px] text-slate-500 mt-1">{payment.admin_notes}</p>}</div><span className={`rounded-full px-2.5 py-1 font-bold uppercase ${payment.status==='confirmed'?'bg-emerald-50 text-emerald-700':payment.status==='rejected'?'bg-rose-50 text-rose-700':'bg-amber-50 text-amber-700'}`}>{payment.status}</span></div>)}</div>}
       </div>
 
       {/* 3. Activation History */}

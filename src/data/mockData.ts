@@ -1,4 +1,4 @@
-import { VideoTask, QuizQuestion, ClickTask, ChatUser, PlatformSettings } from '../types';
+import { VideoTask, QuizQuestion, ClickTask, ChatUser, PlatformSettings } from '../types/index';
 
 export const INITIAL_SETTINGS: PlatformSettings = {
   premiumFee: 12000,

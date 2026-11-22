@@ -70,7 +70,7 @@ export const DashboardPage: React.FC = () => {
         <div className="relative z-10">
           <div className="flex items-center justify-between">
             <span className="text-xs font-bold uppercase tracking-wider text-blue-100/90">
-              AVAILABLE BALANCE
+              TOTAL WALLET BALANCE
             </span>
             <span className="text-[11px] font-semibold bg-white/15 px-2.5 py-0.5 rounded-full text-white backdrop-blur-xs">
               {user?.membershipStatus === 'premium' ? 'Verified Member' : 'Standard Member'}
@@ -84,7 +84,7 @@ export const DashboardPage: React.FC = () => {
             <p className="text-xs text-blue-100/80 mt-1">
               {user?.membershipStatus === 'premium'
                 ? 'All verified task rewards & commissions ready for payout'
-                : 'Task earnings accumulate immediately — activate Premium for instant withdrawals'}
+                : `Includes your ₦${wallet.welcomePackBalance.toLocaleString()} welcome bonus. Upgrade to Premium to unlock withdrawals.`}
             </p>
           </div>
 
@@ -179,6 +179,16 @@ export const DashboardPage: React.FC = () => {
           </span>
         </div>
       )}
+
+      {/* Pinned official Telegram announcement channel */}
+      <a href="https://t.me/Movaofficials1" target="_blank" rel="noreferrer" className="group relative isolate block overflow-hidden rounded-3xl border border-sky-300/40 bg-gradient-to-r from-[#071D3A] via-[#0A2D56] to-[#075985] p-5 text-white shadow-[0_12px_40px_rgba(14,165,233,0.18)] transition hover:shadow-[0_14px_48px_rgba(14,165,233,0.3)]">
+        <span aria-hidden="true" className="pointer-events-none absolute -right-10 -top-12 h-40 w-40 rounded-full bg-sky-400/20 blur-3xl transition group-hover:bg-sky-300/30" />
+        <div className="relative flex items-center gap-3">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl border border-white/15 bg-sky-400/15 text-sky-200 shadow-[0_0_24px_rgba(56,189,248,0.25)]"><Send className="h-6 w-6" /></div>
+          <div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className="text-[10px] font-extrabold uppercase tracking-wider text-sky-200">Pinned community</span><span className="rounded-full bg-emerald-400/15 px-2 py-0.5 text-[9px] font-bold text-emerald-200">Official channel</span></div><h3 className="mt-1 text-base font-black">Join the MOVA announcement channel</h3><p className="mt-0.5 text-xs text-sky-100/80">Get official platform updates, announcements and important notices.</p></div>
+          <span className="shrink-0 rounded-xl bg-white px-3 py-2 text-xs font-extrabold text-sky-900">Join <ArrowRight className="ml-1 inline h-3.5 w-3.5" /></span>
+        </div>
+      </a>
 
       {/* 3. THREE STATISTICS CARDS (Total Tasks, Referral Balance, Total Earned) */}
       <div className="grid grid-cols-3 gap-3">

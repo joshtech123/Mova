@@ -12,6 +12,7 @@ export const LoansPage: React.FC = () => {
   const [employmentStatus, setEmploymentStatus] = useState<string>('');
   const [bankName, setBankName] = useState<string>('');
   const [accountNumber, setAccountNumber] = useState<string>('');
+  const [accountName, setAccountName] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Financial calculations
@@ -19,7 +20,7 @@ export const LoansPage: React.FC = () => {
   const totalRepayment = Math.round(loanAmount * (1 + annualInterestRate * (tenureMonths / 12)));
   const monthlyRepayment = Math.round(totalRepayment / tenureMonths);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const incomeNum = parseFloat(monthlyIncome);
 
@@ -28,7 +29,10 @@ export const LoansPage: React.FC = () => {
       return;
     }
 
-    const res = applyForLoan(loanAmount, tenureMonths, bankName, accountNumber, incomeNum, employmentStatus);
+    if (!/^\d{10}$/.test(accountNumber) || !accountName.trim() || !bankName) { addToast({ type: 'error', title: 'Bank details required', message: 'Enter your bank, 10-digit account number and account holder name.' }); return; }
+    setIsSubmitting(true);
+    const res = await applyForLoan(loanAmount, tenureMonths, bankName, accountNumber, accountName.trim(), incomeNum, employmentStatus);
+    setIsSubmitting(false);
     addToast({ type: res.success ? 'success' : 'error', title: res.success ? 'Application received' : 'Loan application unavailable', message: res.message });
   };
 
@@ -169,6 +173,7 @@ export const LoansPage: React.FC = () => {
                 onChange={(e) => setBankName(e.target.value)}
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
               >
+                <option value="">Select your bank</option>
                 {NIGERIAN_BANKS.map((b) => (
                   <option key={b.name} value={b.name}>
                     {b.name}
@@ -189,6 +194,11 @@ export const LoansPage: React.FC = () => {
                 className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs font-mono focus:ring-2 focus:ring-[#0056FD]"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-slate-700 mb-1">Account holder name</label>
+            <input type="text" required maxLength={100} value={accountName} onChange={(e) => setAccountName(e.target.value)} placeholder="Name registered to your bank account" className="w-full px-3.5 py-2.5 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]" />
           </div>
 
           <div className="pt-2">

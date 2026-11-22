@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { ClickTask } from '../types';
+import { ClickTask } from '../types/index';
 import {
   MousePointerClick,
   ExternalLink,

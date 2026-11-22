@@ -8,7 +8,7 @@ export const SupportAssistant: React.FC = () => {
   const [question, setQuestion] = useState('');
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<Message[]>([
-    { role: 'assistant', text: 'Hi! I’m MOVA’s AI help assistant. I can explain how the platform works. I cannot see your private account, confirm payments or approve withdrawals. For payment confirmation, contact the MOVA team on Telegram.' }
+    { role: 'assistant', text: 'Hi! I’m MOVA’s AI help assistant. I can explain how the platform works. I cannot see your private account, confirm payments or approve withdrawals. Submit Premium payments and receipts inside MOVA. You can join the official channel for announcements.' }
   ]);
 
   const send = async () => {
@@ -33,13 +33,8 @@ export const SupportAssistant: React.FC = () => {
     }
   };
 
-  const telegram = (import.meta.env.VITE_PAYMENT_SUPPORT_TELEGRAM || '').replace(/^@/, '').trim();
   const openTelegram = () => {
-    if (!telegram) {
-      setMessages((m) => [...m, { role: 'assistant', text: 'MOVA’s Telegram support username has not been configured yet. Please check back shortly.' }]);
-      return;
-    }
-    window.open(`https://t.me/${telegram}`, '_blank', 'noopener,noreferrer');
+    window.open('https://t.me/Movaofficials1', '_blank', 'noopener,noreferrer');
   };
 
   return (
@@ -59,7 +54,7 @@ export const SupportAssistant: React.FC = () => {
         </div>
         <div className="p-3 border-t border-slate-200 bg-white space-y-2">
           <div className="flex gap-2"><input value={question} onChange={(e)=>setQuestion(e.target.value)} onKeyDown={(e)=>{if(e.key==='Enter') void send();}} placeholder="Ask about MOVA..." className="min-w-0 flex-1 rounded-xl border border-slate-200 px-3 py-2.5 text-xs outline-none focus:border-blue-500" /><button onClick={()=>void send()} disabled={busy || !question.trim()} className="rounded-xl bg-[#2457F5] text-white px-3 disabled:opacity-40"><Send className="w-4 h-4"/></button></div>
-          <button onClick={openTelegram} className="w-full flex items-center justify-center gap-2 text-xs font-bold text-[#2457F5] py-2"><ExternalLink className="w-3.5 h-3.5"/> Contact human support on Telegram</button>
+          <button onClick={openTelegram} className="w-full flex items-center justify-center gap-2 text-xs font-bold text-[#2457F5] py-2"><ExternalLink className="w-3.5 h-3.5"/> Join official MOVA channel</button>
         </div>
       </section>}
     </>

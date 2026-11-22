@@ -50,6 +50,9 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { id: 'settings', label: 'Settings', icon: Settings },
     { id: 'tutorial', label: 'Tutorial Video', icon: PlayCircle },
   ];
+  const visibleMenuItems = user?.role === 'admin'
+    ? [...menuItems, { id: 'admin', label: 'Admin Dashboard', icon: Shield }]
+    : menuItems;
 
   const handleNav = (pageId: string) => {
     setCurrentPage(pageId);
@@ -87,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         {/* Navigation list */}
         <div className="flex-1 overflow-y-auto px-3 py-3 space-y-1 scrollbar-thin scrollbar-thumb-slate-800">
-          {menuItems.map((item) => {
+          {visibleMenuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
             const premiumOnly = ['chat', 'referral', 'talking-stage', 'loans'].includes(item.id);

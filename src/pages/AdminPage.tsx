@@ -1,561 +1,99 @@
-import React, { useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
+import { AlertCircle, CheckCircle2, Clock3, RefreshCw, ShieldCheck, Users, Wallet, CreditCard, ArrowDownToLine, FileText } from 'lucide-react';
+import { getSavedSession } from '../lib/supabaseAuth';
 import { useApp } from '../context/AppContext';
-import {
-  Shield,
-  Settings,
-  Users,
-  Wallet,
-  Video,
-  HelpCircle,
-  TrendingUp,
-  CheckCircle2,
-  XCircle,
-  Plus,
-  Save,
-  RotateCcw,
-  Sparkles,
-} from 'lucide-react';
+
+type AdminData = {
+  members: any[]; premiumPayments: any[]; withdrawals: any[]; referrals: any[]; referralRelationships: any[]; loans: any[]; audit: any[]; ledger: any[];
+  overview: Record<string, number>;
+};
+
+const money = (koboOrNaira: number, isKobo = false) => `₦${(Number(koboOrNaira || 0) / (isKobo ? 100 : 1)).toLocaleString('en-NG', { maximumFractionDigits: 2 })}`;
 
 export const AdminPage: React.FC = () => {
-  const {
-    user,
-    settings,
-    adminUpdateSettings,
-    adminAddVideo,
-    adminAddQuiz,
-    withdrawals,
-    adminApproveWithdrawal,
-    adminRejectWithdrawal,
-    loans,
-    adminApproveLoan,
-    adminRejectLoan,
-    resetAllData,
-    videos,
-    quizzes,
-  } = useApp();
+  const { user, addToast } = useApp();
+  const [data, setData] = useState<AdminData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [busyId, setBusyId] = useState('');
+  const [tab, setTab] = useState<'overview'|'members'|'payments'|'withdrawals'|'referrals'|'loans'|'ledger'|'audit'>('overview');
 
-  const [activeTab, setActiveTab] = useState<'settings' | 'withdrawals' | 'loans' | 'videos' | 'quizzes'>('settings');
+  const load = useCallback(async () => {
+    const session = getSavedSession();
+    if (!session?.access_token) { setLoading(false); return; }
+    setLoading(true);
+    try {
+      const response = await fetch('/api/mova-operations', { headers: { Authorization: `Bearer ${session.access_token}` } });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not load admin records.');
+      setData(result);
+    } catch (error) {
+      addToast({ type: 'error', title: 'Admin data unavailable', message: error instanceof Error ? error.message : 'Please try again.' });
+    } finally { setLoading(false); }
+  }, []);
 
-  // Form states for settings
-  const [premiumFee, setPremiumFee] = useState(settings.premiumFee);
-  const [videoReward, setVideoReward] = useState(settings.videoReward);
-  const [quizReward, setQuizReward] = useState(settings.quizReward);
-  const [clickReward, setClickReward] = useState(settings.clickReward);
-  const [directReferral, setDirectReferral] = useState(settings.directReferralCommission);
-  const [minWithdrawal, setMinWithdrawal] = useState(settings.minWithdrawal);
+  useEffect(() => { void load(); }, [load]);
 
-  // New Video Form
-  const [newVidTitle, setNewVidTitle] = useState('');
-  const [newVidDuration, setNewVidDuration] = useState(30);
-  const [newVidReward, setNewVidReward] = useState(2000);
-  const [newVidCategory, setNewVidCategory] = useState('Tech & Finance');
-  const [newVidSponsor, setNewVidSponsor] = useState('Apex Partners');
-
-  // New Quiz Form
-  const [newQText, setNewQText] = useState('');
-  const [newQOptA, setNewQOptA] = useState('');
-  const [newQOptB, setNewQOptB] = useState('');
-  const [newQOptC, setNewQOptC] = useState('');
-  const [newQOptD, setNewQOptD] = useState('');
-  const [newQCorrect, setNewQCorrect] = useState(0);
-  const [newQExpl, setNewQExpl] = useState('');
-
-  const handleSaveSettings = (e: React.FormEvent) => {
-    e.preventDefault();
-    adminUpdateSettings({
-      premiumFee: Number(premiumFee),
-      videoReward: Number(videoReward),
-      quizReward: Number(quizReward),
-      clickReward: Number(clickReward),
-      directReferralCommission: Number(directReferral),
-      minWithdrawal: Number(minWithdrawal),
-    });
+  const review = async (action: 'admin-review-premium'|'admin-review-withdrawal'|'admin-review-loan', id: string, decision: string) => {
+    const session = getSavedSession();
+    if (!session?.access_token) return;
+    const notes = window.prompt(decision === 'rejected' ? 'Enter the reason for rejection:' : 'Optional admin note:') || '';
+    if (decision === 'rejected' && !notes.trim()) {
+      addToast({ type: 'error', title: 'Reason required', message: 'Enter a reason before rejecting this request.' });
+      return;
+    }
+    setBusyId(id);
+    try {
+      const response = await fetch('/api/mova-operations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action, id, decision, notes }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not update this record.');
+      addToast({ type: 'success', title: 'Record updated', message: 'The decision was saved to the MOVA database and audit log.' });
+      await load();
+    } catch (error) {
+      addToast({ type: 'error', title: 'Action failed', message: error instanceof Error ? error.message : 'Please try again.' });
+    } finally { setBusyId(''); }
   };
 
-  const handleCreateVideo = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newVidTitle.trim()) return;
+  const tabs = [
+    ['overview','Overview'],['members','Members'],['payments','Premium payments'],['withdrawals','Withdrawals'],['referrals','Referrals'],['loans','Loans'],['ledger','Wallet ledger'],['audit','Audit log'],
+  ] as const;
 
-    adminAddVideo({
-      title: newVidTitle,
-      durationSeconds: Number(newVidDuration),
-      reward: Number(newVidReward),
-      category: newVidCategory,
-      thumbnail: 'https://images.unsplash.com/photo-1551836022-d5d88e9218df?w=800&auto=format&fit=crop&q=80',
-      videoUrl: 'https://www.youtube.com',
-      sponsor: newVidSponsor,
-    });
+  if (loading && !data) return <div className="max-w-6xl mx-auto p-6"><div className="rounded-3xl bg-white border p-8 text-sm text-slate-500">Loading live MOVA records from Supabase...</div></div>;
+  if (!data) return <div className="max-w-6xl mx-auto p-6"><div className="rounded-3xl bg-white border p-8"><h2 className="font-bold">Admin data could not be loaded</h2><p className="text-sm text-slate-500 mt-2">Check that the reviewed MOVA database migration has been applied and the server-side Supabase key is configured.</p><button onClick={load} className="mt-4 rounded-xl bg-blue-600 text-white px-4 py-2 text-sm font-bold">Try again</button></div></div>;
 
-    setNewVidTitle('');
-  };
+  const o = data.overview;
+  return <div className="max-w-7xl mx-auto p-4 sm:p-6 pb-24 space-y-5">
+    <header className="rounded-3xl bg-[#080D35] text-white p-6 sm:p-8 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div className="flex items-center gap-3"><div className="h-12 w-12 rounded-2xl bg-blue-500/20 flex items-center justify-center"><ShieldCheck className="h-6 w-6 text-blue-300"/></div><div><div className="text-xs uppercase tracking-wider text-blue-200 font-bold">MOVA secure operations</div><h1 className="text-2xl font-black">Admin dashboard</h1><p className="text-xs text-slate-300 mt-1">Live records from the MOVA Supabase database</p></div></div>
+      <div className="text-xs text-slate-300">Signed in: <strong className="text-white">{user?.email}</strong><button onClick={load} className="ml-4 inline-flex items-center gap-2 rounded-xl bg-white/10 px-3 py-2 text-white"><RefreshCw className="h-3.5 w-3.5"/>Refresh</button></div>
+    </header>
+    <nav className="flex gap-2 overflow-x-auto pb-1">{tabs.map(([id,label])=><button key={id} onClick={()=>setTab(id)} className={`whitespace-nowrap rounded-xl px-4 py-2.5 text-xs font-bold ${tab===id?'bg-blue-600 text-white':'bg-white border text-slate-600'}`}>{label}</button>)}</nav>
 
-  const handleCreateQuiz = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newQText.trim() || !newQOptA.trim() || !newQOptB.trim()) return;
-
-    adminAddQuiz({
-      question: newQText,
-      options: [newQOptA, newQOptB, newQOptC || 'Option C', newQOptD || 'Option D'],
-      correctIndex: Number(newQCorrect),
-      reward: settings.quizReward,
-      category: 'General Knowledge',
-      explanation: newQExpl || 'Correctly verified answer.',
-    });
-
-    setNewQText('');
-    setNewQOptA('');
-    setNewQOptB('');
-    setNewQOptC('');
-    setNewQOptD('');
-    setNewQExpl('');
-  };
-
-  return (
-    <div className="pb-24 pt-4 px-4 sm:px-6 max-w-5xl mx-auto space-y-5">
-      {/* Header */}
-      <div className="bg-[#0B192C] text-white rounded-3xl p-6 shadow-xl border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
-          <div className="flex items-center gap-2 mb-1.5">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-purple-400 bg-purple-500/10 px-2.5 py-1 rounded-full">
-              ADMIN CONTROL CENTER
-            </span>
-            <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded-full font-semibold">
-              Live Operations
-            </span>
-          </div>
-          <h1 className="text-2xl font-black text-white">Platform Administration</h1>
-          <p className="text-xs text-slate-300 mt-0.5">
-            Manage dynamic reward amounts, approve withdrawals, review loan applications, and create tasks.
-          </p>
-        </div>
-
-        <button
-          onClick={resetAllData}
-          className="inline-flex items-center gap-1.5 bg-rose-900/40 hover:bg-rose-900/60 text-rose-300 border border-rose-500/30 text-xs font-bold px-4 py-2.5 rounded-2xl transition-colors shrink-0"
-        >
-          <RotateCcw className="w-4 h-4" />
-          <span>Reset All Demo Data</span>
-        </button>
+    {tab==='overview' && <>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {[[Users,'Registered members',o.registeredMembers],[ShieldCheck,'Premium members',o.premiumMembers],[CreditCard,'Confirmed Premium revenue',money(o.confirmedPremiumRevenue)],[ArrowDownToLine,'Pending withdrawal liability',money(o.pendingWithdrawalLiability)]].map(([Icon,label,value]:any)=><div key={label} className="rounded-2xl border bg-white p-4"><div className="flex items-center gap-2 text-xs text-slate-500"><Icon className="h-4 w-4"/>{label}</div><div className="text-xl font-black text-slate-900 mt-2">{value}</div></div>)}
       </div>
+      <div className="grid sm:grid-cols-3 gap-3">{[['Standard members',o.standardMembers],['Pending Premium payments',o.pendingPremiumPayments],['Processing withdrawals',o.pendingWithdrawals]].map(([label,value]:any)=><div key={label} className="rounded-2xl bg-white border p-4"><div className="text-xs text-slate-500">{label}</div><div className="text-2xl font-black mt-1">{value}</div></div>)}</div>
+      <div className="rounded-2xl bg-white border p-5"><h2 className="font-bold">Financial figures</h2><p className="text-xs text-slate-500 mt-1">Values are calculated from confirmed payment records and saved withdrawal requests. Pending amounts are not counted as paid.</p><div className="grid sm:grid-cols-2 gap-4 mt-4"><div><div className="text-xs text-slate-500">Completed withdrawals</div><div className="text-xl font-black">{money(o.completedWithdrawals)}</div></div><div><div className="text-xs text-slate-500">Approved wallet credits, gross</div><div className="text-xl font-black">{money(o.approvedLedgerCredits)}</div></div></div></div>
+    </>}
 
-      {/* Tabs */}
-      <div className="flex gap-2 overflow-x-auto pb-1 text-xs">
-        {[
-          { id: 'settings', label: 'Reward & Platform Settings', icon: Settings },
-          { id: 'withdrawals', label: `Withdrawals (${withdrawals.filter((w) => w.status === 'pending').length})`, icon: Wallet },
-          { id: 'loans', label: `Loan Applications (${loans.filter((l) => l.status === 'pending').length})`, icon: TrendingUp },
-          { id: 'videos', label: `Video Tasks (${videos.length})`, icon: Video },
-          { id: 'quizzes', label: `Quiz Pool (${quizzes.length})`, icon: HelpCircle },
-        ].map((tab) => {
-          const Icon = tab.icon;
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-2xl font-bold whitespace-nowrap transition-all ${
-                isActive
-                  ? 'bg-[#0056FD] text-white shadow-xs'
-                  : 'bg-white text-slate-700 hover:bg-slate-100 border border-slate-200'
-              }`}
-            >
-              <Icon className="w-4 h-4" />
-              <span>{tab.label}</span>
-            </button>
-          );
-        })}
-      </div>
+    {tab==='members' && <div className="rounded-2xl bg-white border overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50 text-slate-500"><tr>{['Member','Email','Username','Membership','Joined'].map(x=><th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.members.map(m=><tr className="border-t" key={m.id}><td className="p-3 font-bold">{m.full_name}</td><td className="p-3">{m.email||'Email unavailable'}</td><td className="p-3">@{m.username}</td><td className="p-3">{m.membership_status}</td><td className="p-3">{new Date(m.created_at).toLocaleDateString()}</td></tr>)}</tbody></table></div>}
 
-      {/* TAB 1: REWARD & PLATFORM SETTINGS */}
-      {activeTab === 'settings' && (
-        <div className="bg-white rounded-3xl p-6 sm:p-7 border border-slate-100 shadow-xs space-y-4">
-          <div className="border-b border-slate-100 pb-3">
-            <h2 className="text-base font-bold text-slate-900">Dynamic Financial Rules & Rewards</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
-              Update reward amounts and minimum withdrawal without changing source code.
-            </p>
-          </div>
+    {tab==='payments' && <div className="space-y-3">{data.premiumPayments.length===0?<Empty text="No Premium payment submissions have been recorded."/>:data.premiumPayments.map(p=><div key={p.id} className="rounded-2xl border bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3"><div><div className="font-bold text-sm">{money(p.amount_kobo,true)} · {p.transfer_reference}</div><div className="text-xs text-slate-500 mt-1">Member: {data.members.find(m=>m.id===p.user_id)?.email||p.user_id} · {new Date(p.created_at).toLocaleString()}</div><div className="text-xs mt-1">Status: <strong>{p.status}</strong></div>{p.proof_url&&<a className="inline-block mt-2 text-blue-600 underline" href={p.proof_url} target="_blank" rel="noreferrer">View submitted receipt</a>}</div>{p.status==='pending'&&<div className="flex gap-2"><button disabled={busyId===p.id} onClick={()=>review('admin-review-premium',p.id,'confirmed')} className="rounded-xl bg-emerald-600 text-white px-3 py-2 text-xs font-bold">Confirm bank credit</button><button disabled={busyId===p.id} onClick={()=>review('admin-review-premium',p.id,'rejected')} className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs font-bold">Reject</button></div>}</div>)}</div>}
 
-          <form onSubmit={handleSaveSettings} className="space-y-4">
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  MOVA Premium Fee (₦)
-                </label>
-                <input
-                  type="number"
-                  value={premiumFee}
-                  onChange={(e) => setPremiumFee(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
+    {tab==='withdrawals' && <div className="space-y-3">{data.withdrawals.length===0?<Empty text="No withdrawal requests have been recorded."/>:data.withdrawals.map(w=><div key={w.id} className="rounded-2xl border bg-white p-4 flex flex-col lg:flex-row lg:items-center justify-between gap-3"><div><div className="font-bold">{money(w.amount_kobo,true)} · {w.status.toUpperCase()}</div><div className="text-xs text-slate-500 mt-1">{data.members.find(m=>m.id===w.user_id)?.email||w.user_id} · {w.wallet_source} wallet</div><div className="text-xs mt-1">{w.bank_name} · {w.account_number} · {w.account_name}</div><div className="text-[11px] text-slate-400 mt-1">{new Date(w.created_at).toLocaleString()}</div></div>{w.status==='processing'&&<div className="flex gap-2"><button disabled={busyId===w.id} onClick={()=>review('admin-review-withdrawal',w.id,'completed')} className="rounded-xl bg-emerald-600 text-white px-3 py-2 text-xs font-bold">Mark paid</button><button disabled={busyId===w.id} onClick={()=>review('admin-review-withdrawal',w.id,'rejected')} className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs font-bold">Reject & refund</button></div>}</div>)}</div>}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Video Task Reward (₦)
-                </label>
-                <input
-                  type="number"
-                  value={videoReward}
-                  onChange={(e) => setVideoReward(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
+    {tab==='referrals' && <div className="space-y-4"><div className="rounded-2xl bg-white border overflow-x-auto"><div className="p-4 border-b"><h3 className="font-bold">Referral relationships</h3><p className="text-xs text-slate-500 mt-1">Who joined using another member's referral code. These are registrations, not automatically paid commissions.</p></div><table className="w-full text-left text-xs"><thead className="bg-slate-50"><tr>{['Referrer','New member','Joined'].map(x=><th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.referralRelationships.map((r:any)=><tr key={r.referred_user_id} className="border-t"><td className="p-3">{r.referrer_email||r.referrer_user_id}</td><td className="p-3">{r.referred_email||r.referred_user_id}</td><td className="p-3">{new Date(r.created_at).toLocaleDateString()}</td></tr>)}</tbody></table>{data.referralRelationships.length===0&&<Empty text="No referral-attributed registrations have been recorded yet."/>}</div><div className="rounded-2xl bg-white border overflow-x-auto"><div className="p-4 border-b"><h3 className="font-bold">Verified referral commissions</h3></div><table className="w-full text-left text-xs"><thead className="bg-slate-50"><tr>{['Referrer','Referred member','Tier','Commission','Status','Date'].map(x=><th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.referrals.map(r=><tr key={r.id} className="border-t"><td className="p-3">{data.members.find(m=>m.id===r.referrer_user_id)?.email||r.referrer_user_id}</td><td className="p-3">{data.members.find(m=>m.id===r.referred_user_id)?.email||r.referred_user_id}</td><td className="p-3">{r.tier}</td><td className="p-3">{money(r.amount_kobo,true)}</td><td className="p-3">{r.status}</td><td className="p-3">{new Date(r.created_at).toLocaleDateString()}</td></tr>)}</tbody></table>{data.referrals.length===0&&<Empty text="No referral commissions have been credited or recorded."/>}</div></div>}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Quiz Correct Reward (₦)
-                </label>
-                <input
-                  type="number"
-                  value={quizReward}
-                  onChange={(e) => setQuizReward(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-            </div>
+    {tab==='loans' && <div className="space-y-3">{data.loans.length===0?<Empty text="No loan applications have been recorded."/>:data.loans.map(l=><div key={l.id} className="rounded-2xl border bg-white p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3"><div><div className="font-bold">{money(l.amount_kobo,true)} · {l.status}</div><div className="text-xs text-slate-500 mt-1">{data.members.find(m=>m.id===l.user_id)?.email||l.user_id} · {l.bank_name} · {l.account_number} · {l.account_name}</div><div className="text-xs text-slate-500">Tenure: {l.tenure_months} months · Monthly income: {money(l.monthly_income_kobo,true)} · {new Date(l.created_at).toLocaleString()}</div></div>{['pending','under_review','reviewing'].includes(l.status)&&<div className="flex gap-2"><button disabled={busyId===l.id} onClick={()=>review('admin-review-loan',l.id,'under_review')} className="rounded-xl border px-3 py-2 text-xs font-bold">Review</button><button disabled={busyId===l.id} onClick={()=>review('admin-review-loan',l.id,'approved')} className="rounded-xl bg-emerald-600 text-white px-3 py-2 text-xs font-bold">Approve</button><button disabled={busyId===l.id} onClick={()=>review('admin-review-loan',l.id,'rejected')} className="rounded-xl bg-rose-50 text-rose-700 px-3 py-2 text-xs font-bold">Reject</button></div>}</div>)}</div>}
 
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Click & Earn Reward (₦)
-                </label>
-                <input
-                  type="number"
-                  value={clickReward}
-                  onChange={(e) => setClickReward(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
+    {tab==='ledger' && <div className="rounded-2xl bg-white border overflow-x-auto"><table className="w-full text-left text-xs"><thead className="bg-slate-50"><tr>{['Member','Activity','Amount','Status','Reference','Date'].map(x=><th className="p-3" key={x}>{x}</th>)}</tr></thead><tbody>{data.ledger.map(r=><tr className="border-t" key={r.id}><td className="p-3">{data.members.find(m=>m.id===r.user_id)?.email||r.user_id}</td><td className="p-3">{r.activity_type}</td><td className="p-3">{money(r.amount_kobo,true)}</td><td className="p-3">{r.status}</td><td className="p-3">{r.idempotency_key}</td><td className="p-3">{new Date(r.created_at).toLocaleString()}</td></tr>)}</tbody></table></div>}
 
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Direct Referral Commission (₦)
-                </label>
-                <input
-                  type="number"
-                  value={directReferral}
-                  onChange={(e) => setDirectReferral(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">
-                  Minimum Withdrawal Limit (₦)
-                </label>
-                <input
-                  type="number"
-                  value={minWithdrawal}
-                  onChange={(e) => setMinWithdrawal(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs font-bold focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-            </div>
-
-            <div className="pt-2">
-              <button
-                type="submit"
-                className="inline-flex items-center gap-2 py-3 px-6 bg-[#0056FD] hover:bg-[#0047D4] text-white font-bold text-xs rounded-2xl shadow-xs"
-              >
-                <Save className="w-4 h-4" />
-                <span>Save Platform Settings</span>
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 2: WITHDRAWAL MANAGEMENT */}
-      {activeTab === 'withdrawals' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900">Member Withdrawal Requests</h2>
-          {withdrawals.length === 0 ? (
-            <p className="text-xs text-slate-400 py-6 text-center">No withdrawal requests filed yet.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {withdrawals.map((w) => (
-                <div key={w.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-slate-900">₦{w.amount.toLocaleString()}</span>
-                      <span className="text-[10px] uppercase font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
-                        {w.walletSource.replace('_', ' ')}
-                      </span>
-                    </div>
-                    <p className="text-slate-600 mt-0.5">
-                      Bank: <strong>{w.bankName}</strong> • {w.accountName} ({w.accountNumber})
-                    </p>
-                    <p className="text-[10px] text-slate-400">{w.date} • Ref: {w.reference}</p>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
-                        w.status === 'successful'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : w.status === 'pending'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {w.status}
-                    </span>
-
-                    {w.status === 'pending' && (
-                      <div className="flex gap-1.5 ml-2">
-                        <button
-                          onClick={() => adminApproveWithdrawal(w.id)}
-                          className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg font-bold text-xs flex items-center gap-1"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>Approve Payout</span>
-                        </button>
-                        <button
-                          onClick={() => adminRejectWithdrawal(w.id)}
-                          className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg font-bold text-xs flex items-center gap-1"
-                        >
-                          <XCircle className="w-4 h-4 text-rose-600" />
-                          <span>Reject</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 3: LOAN APPLICATIONS */}
-      {activeTab === 'loans' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900">Member Loan Applications</h2>
-          {loans.length === 0 ? (
-            <p className="text-xs text-slate-400 py-6 text-center">No loan applications awaiting assessment.</p>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {loans.map((loan) => (
-                <div key={loan.id} className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
-                  <div>
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-slate-900">
-                        ₦{loan.amount.toLocaleString()} ({loan.tenureMonths} Months)
-                      </span>
-                      <span className="text-[10px] text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded font-bold">
-                        Monthly: ₦{loan.monthlyRepayment.toLocaleString()}
-                      </span>
-                    </div>
-                    <p className="text-slate-600 mt-0.5">
-                      Employment: {loan.employmentStatus} • Monthly Income: ₦{loan.monthlyIncome.toLocaleString()}
-                    </p>
-                    <p className="text-[10px] text-slate-400">
-                      Disbursement Account: {loan.bankName} ({loan.accountNumber}) • Ref: {loan.reference}
-                    </p>
-                  </div>
-
-                  <div className="flex items-center gap-2 shrink-0">
-                    <span
-                      className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${
-                        loan.status === 'approved'
-                          ? 'bg-emerald-100 text-emerald-800'
-                          : loan.status === 'pending'
-                          ? 'bg-amber-100 text-amber-800'
-                          : 'bg-rose-100 text-rose-800'
-                      }`}
-                    >
-                      {loan.status}
-                    </span>
-
-                    {loan.status === 'pending' && (
-                      <div className="flex gap-1.5 ml-2">
-                        <button
-                          onClick={() => adminApproveLoan(loan.id)}
-                          className="p-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg font-bold text-xs flex items-center gap-1"
-                        >
-                          <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                          <span>Approve & Disburse</span>
-                        </button>
-                        <button
-                          onClick={() => adminRejectLoan(loan.id)}
-                          className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg font-bold text-xs flex items-center gap-1"
-                        >
-                          <XCircle className="w-4 h-4 text-rose-600" />
-                          <span>Decline</span>
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* TAB 4: ADD VIDEO TASK */}
-      {activeTab === 'videos' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900">Create Video Campaign</h2>
-          <form onSubmit={handleCreateVideo} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Video Title</label>
-              <input
-                type="text"
-                required
-                value={newVidTitle}
-                onChange={(e) => setNewVidTitle(e.target.value)}
-                placeholder="e.g. High-Yield Investment Strategies for Young Africans"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Duration (Seconds)</label>
-                <input
-                  type="number"
-                  value={newVidDuration}
-                  onChange={(e) => setNewVidDuration(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Reward (₦)</label>
-                <input
-                  type="number"
-                  value={newVidReward}
-                  onChange={(e) => setNewVidReward(Number(e.target.value))}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Sponsor Brand</label>
-                <input
-                  type="text"
-                  value={newVidSponsor}
-                  onChange={(e) => setNewVidSponsor(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 py-2.5 px-5 bg-[#0056FD] hover:bg-[#0047D4] text-white rounded-xl text-xs font-bold"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Publish Video Task</span>
-            </button>
-          </form>
-        </div>
-      )}
-
-      {/* TAB 5: ADD QUIZ QUESTION */}
-      {activeTab === 'quizzes' && (
-        <div className="bg-white rounded-3xl p-6 border border-slate-100 shadow-xs space-y-4">
-          <h2 className="text-base font-bold text-slate-900">Add New Quiz Question</h2>
-          <form onSubmit={handleCreateQuiz} className="space-y-3.5">
-            <div>
-              <label className="block text-xs font-bold text-slate-700 mb-1">Question Text</label>
-              <input
-                type="text"
-                required
-                value={newQText}
-                onChange={(e) => setNewQText(e.target.value)}
-                placeholder="e.g. Which Nigerian city is known as the Coal City?"
-                className="w-full px-3.5 py-2.5 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Option A</label>
-                <input
-                  type="text"
-                  required
-                  value={newQOptA}
-                  onChange={(e) => setNewQOptA(e.target.value)}
-                  placeholder="Enugu"
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Option B</label>
-                <input
-                  type="text"
-                  required
-                  value={newQOptB}
-                  onChange={(e) => setNewQOptB(e.target.value)}
-                  placeholder="Calabar"
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Option C</label>
-                <input
-                  type="text"
-                  value={newQOptC}
-                  onChange={(e) => setNewQOptC(e.target.value)}
-                  placeholder="Ibadan"
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Option D</label>
-                <input
-                  type="text"
-                  value={newQOptD}
-                  onChange={(e) => setNewQOptD(e.target.value)}
-                  placeholder="Kano"
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Correct Answer</label>
-                <select
-                  value={newQCorrect}
-                  onChange={(e) => setNewQCorrect(Number(e.target.value))}
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD] bg-white"
-                >
-                  <option value={0}>Option A</option>
-                  <option value={1}>Option B</option>
-                  <option value={2}>Option C</option>
-                  <option value={3}>Option D</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs font-bold text-slate-700 mb-1">Educational Explanation</label>
-                <input
-                  type="text"
-                  value={newQExpl}
-                  onChange={(e) => setNewQExpl(e.target.value)}
-                  placeholder="Enugu is historically celebrated as the Coal City."
-                  className="w-full px-3.5 py-2 border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-            </div>
-
-            <button
-              type="submit"
-              className="inline-flex items-center gap-1.5 py-2.5 px-5 bg-[#0056FD] hover:bg-[#0047D4] text-white rounded-xl text-xs font-bold"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Add Question to Quiz Pool</span>
-            </button>
-          </form>
-        </div>
-      )}
-    </div>
-  );
+    {tab==='audit' && <div className="space-y-2">{data.audit.length===0?<Empty text="No administrator actions have been recorded yet."/>:data.audit.map(a=><div key={a.id} className="rounded-xl border bg-white p-4"><div className="font-bold text-sm">{a.action}</div><div className="text-xs text-slate-500 mt-1">{a.entity_type} · {a.entity_id} · {new Date(a.created_at).toLocaleString()}</div><pre className="text-[11px] text-slate-500 mt-2 whitespace-pre-wrap">{JSON.stringify(a.details,null,2)}</pre></div>)}</div>}
+    <div className="text-[11px] text-slate-400 flex items-center gap-2"><AlertCircle className="h-3.5 w-3.5"/>This dashboard displays database records only. No sample members, payments or earnings are generated.</div>
+  </div>;
 };
+
+const Empty: React.FC<{text:string}> = ({text}) => <div className="rounded-2xl border border-dashed bg-white p-8 text-center text-sm text-slate-500">{text}</div>;

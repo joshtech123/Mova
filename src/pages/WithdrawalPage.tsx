@@ -23,7 +23,7 @@ export const WithdrawalPage: React.FC = () => {
   };
   const sourceBalance = balances[selectedWallet];
 
-  const handleWithdraw = (event: React.FormEvent<HTMLFormElement>) => {
+  const handleWithdraw = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     if (!isPremium) {
       setShowUpgradePopup(true);
@@ -43,7 +43,7 @@ export const WithdrawalPage: React.FC = () => {
       return;
     }
     setIsSubmitting(true);
-    const result = requestWithdrawal(value, selectedWallet, bankName, accountNumber, accountName.trim());
+    const result = await requestWithdrawal(value, selectedWallet, bankName, accountNumber, accountName.trim());
     setIsSubmitting(false);
     if (result.success) {
       setAmount('');
@@ -125,8 +125,8 @@ export const WithdrawalPage: React.FC = () => {
             <p className="text-[11px] text-slate-500 mt-1">Enter the correct details. MOVA will review them before processing payment.</p>
           </div>
 
-          <button type="submit" disabled={isSubmitting} className="w-full py-4 rounded-2xl font-bold text-sm text-white bg-[#2457F5] hover:bg-blue-700 disabled:opacity-60 shadow-xs">
-            {isSubmitting ? 'Submitting request...' : 'Request withdrawal'}
+          <button type={isPremium ? 'submit' : 'button'} onClick={!isPremium ? () => setShowUpgradePopup(true) : undefined} disabled={isSubmitting} className="w-full py-4 rounded-2xl font-bold text-sm text-white bg-[#2457F5] hover:bg-blue-700 disabled:opacity-60 shadow-xs">
+            {isSubmitting ? 'Submitting request...' : isPremium ? 'Request withdrawal' : 'Upgrade to withdraw'}
           </button>
           <p className="text-center text-[11px] text-slate-400">A submitted request is marked Processing. This does not mean payment has been sent.</p>
         </form>

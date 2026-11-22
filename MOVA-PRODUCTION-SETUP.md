@@ -1,90 +1,82 @@
-# MOVA project update and production setup
+# MOVA production setup and operations
 
-## Changes in this update
-- Replaced the old Moniepoint placeholder on the Premium upgrade screen with the supplied MOVA Kuda account:
-  - Account name: MOVA DIGITAL HUB
-  - Account number: 3004611364
-  - Bank: KUDA MICROFINANCE BANK
-- Premium transfer submission no longer activates Premium automatically. It records a pending reference in the current browser only. Do not treat this local preview record as a payment confirmation.
-- Withdrawal account details are now entered manually. Paystack bank listing and account-name lookup have been removed from the withdrawal flow.
-- Added a welcome popup and a 3-step getting-started guide: profile, bank details, Premium.
-- Removed the email-contains-admin shortcut and the visible role-switch control. The admin page is restricted to accounts with an admin role in the application state.
-- Added a dark theme toggle with neutral surface/text adjustments that preserve MOVA blue and orange accents.
-- Kept the reflex and lucky-wheel mini-games playable. Wheel outcomes are now game badges/entries, not pretend cash credits.
+## What this update adds
 
-## Required environment variable for account-name lookup
-Withdrawal bank details are now entered manually by the member. The withdrawal form no longer calls Paystack for bank listing or account-name resolution, and this project no longer requires `PAYSTACK_SECRET_KEY` for withdrawals. Admin review and actual payout confirmation remain separate steps.
+- Server-backed Premium payment submissions with a required transfer reference and receipt upload.
+- Private Supabase Storage bucket `mova-payment-proofs` for receipts.
+- Protected admin API. Every admin request validates the Supabase access token, checks `profiles.role = 'admin'`, and restricts the owner dashboard to the verified `movadigital87@gmail.com` account.
+- Admin dashboard reachable from the member sidebar for the authorised admin, backed by real Supabase records: members, Premium payment submissions, withdrawals, referral relationships, recorded commissions, loan applications, wallet ledger and audit history.
+- Server-side Premium approval. A member becomes Premium only after an administrator confirms the actual bank credit.
+- Server-side withdrawal creation. The database checks Premium status and the selected wallet balance, records the bank details, creates a ledger debit and creates a `processing` request atomically.
+- Admin payout completion and rejection. Rejection creates a refund ledger entry; completion is an explicit admin decision after the transfer has been sent.
+- ₦9,100 welcome bonus issued once per member through an idempotent ledger key. Free members cannot withdraw; Premium members can.
+- Signup referral-code attribution stored on the member profile.
+- Loan applications saved to Supabase for review.
+- Pinned MOVA Telegram announcement-channel card: https://t.me/Movaofficials1.
+- No Telegram DM is used for Premium payment submission. No Paystack bank account lookup is used.
 
+## Supabase and Vercel configuration
 
-## What is not live yet
-This ZIP is not a fully connected production backend. The existing app still has browser-local demo authentication/state. Client-side task, quiz, click, talking-stage and referral cash-credit actions have been disabled until a secure server ledger is connected. The Premium transfer reference is saved to localStorage and is not shared with a separate admin device. No admin can safely verify a payment across devices until Supabase (or another database) and server-side authorization are connected.
+Frontend variables (safe for browser use):
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
-The SQL foundation is in `supabase/schema.sql`. Create a Supabase project, run that SQL, and then connect the app's registration/login, member profiles, bank details, payment submissions, wallet ledger, task completion and admin review to Supabase server-side APIs. Do not launch real cash rewards until every credit is written to the server ledger with eligibility checks, daily limits, idempotency and admin review where required.
+Server-only Vercel variable:
+- `SUPABASE_SERVICE_ROLE_KEY`
 
-## Admin access
-Do not create an admin by typing "admin" in an email address. The demo shortcut has been removed. In production, the platform owner must be authenticated through Supabase and assigned `app_metadata.role = "admin"` from a trusted server-side process. The admin dashboard must check that trusted role on every server request, not only hide a menu item in React.
+Keep the service-role key out of frontend code, `.env.example` values, GitHub, screenshots and chat. Do not prefix it with `VITE_`.
 
-## Payment confirmation
-For bank transfers, verify the actual credit in the MOVA receiving account or through an approved bank/payment provider integration. Only then should the server mark `premium_payments.status = 'confirmed'`, update the member's `membership_status`, and write an audit record. Never activate based on a screenshot, browser redirect, or user-submitted reference alone.
+Optional AI variable:
+- `OPENAI_API_KEY`
 
-## Build and deployment
-- Framework: Vite + React + TypeScript
-- Build command: `npm run build`
-- Output directory: `dist`
-- Install command: `npm install`
+## Database migration
 
-Dependency installation was attempted in this environment but did not complete within the available execution window, so a successful production build has not been confirmed.
+1. Confirm the existing MOVA Supabase project is the intended project.
+2. Review `supabase/migrations/20261122_mova_core_operations.sql` before execution.
+3. Run that single migration in the existing Supabase SQL Editor only after you approve it.
+4. Do not run the legacy SQL files under `supabase/archive/`. They are retained for reference only.
+5. The migration is additive: it creates operational tables and server functions, adds profile columns, creates a private receipt bucket, normalizes one welcome-bonus ledger credit per existing profile, and assigns the verified `movadigital87@gmail.com` account the admin role if that Auth user already exists.
+6. Existing `supabase/schema.sql` and `supabase/002_premium_rls.sql` are preserved by this update. Existing RLS policies are not dropped or rewritten. The new operational tables are accessed by the server API using the service-role key after authentication and role checks.
 
+If `movadigital87@gmail.com` does not yet exist as a verified Supabase Auth user when the migration runs, register and verify that account, then ask for a separate reviewed admin-role SQL statement. Do not change the email or grant admin access from the browser.
 
-## Telegram payment confirmation
-The Premium screen now opens Telegram after the member enters their transfer reference. It prefills the member's name, email, amount and reference and asks them to attach the bank receipt manually. Telegram links cannot attach a file automatically.
-Configure `VITE_PAYMENT_SUPPORT_TELEGRAM` with the payment reviewer's Telegram username (without @) in Vercel. Do not invent a username. The receiving reviewer must independently confirm the Kuda account credit before Premium is enabled.
+## Admin dashboard
 
-## MOVA AI support
-A floating MOVA AI Assistant is included. It answers general platform questions only and cannot inspect member accounts or approve money movements. Configure `OPENAI_API_KEY` in Vercel to enable it. Keep it server-side, never expose it as a `VITE_` variable. `OPENAI_SUPPORT_MODEL` defaults to `gpt-5.5`. If the key is missing, the assistant clearly reports that it is not configured.
+Open `/admin` while signed in as `movadigital87@gmail.com`. The page is only a UI gate. The API independently validates the Supabase JWT and the database admin role before returning data or accepting an approval action.
 
-## Important current state
-The old seeded Oakaka member session has been removed. The app starts signed out. Demo login and registration now fail closed with a message because Supabase Auth is not connected. This avoids inventing a member email or creating fake identities. The profile screen no longer pre-fills Oakaka's personal data.
-The static fake "recent member activated" style notifications have been removed.
-Loan submissions are disabled until a real backend, account verification and lending partner are connected. The loan page keeps its form/calculator presentation but will not claim an application was submitted.
-The lucky wheel has a longer easing animation and badge/entry outcomes only. It does not credit cash.
+Admin actions:
+- Premium payments: inspect submitted receipt and transfer reference; confirm only after checking the receiving bank account, or reject with a reason.
+- Withdrawals: view the member's submitted bank details; mark paid only after an actual transfer, or reject with a reason and trigger a ledger refund.
+- Members: inspect registration and membership status.
+- Referrals: inspect signup attribution separately from commission records. No commission is invented or automatically credited by this update because the active referral payout amounts need final confirmation.
+- Loans: inspect applications. Approval/disbursement is not automated and remains subject to a real lending and affordability process.
+- Wallet ledger and audit log: inspect actual records and admin decisions.
 
+## Welcome bonus and withdrawal rules
 
-## MOVA official Premium transfer details
+- Each member receives one ₦9,100 `welcome_bonus` ledger credit.
+- The bonus appears in the wallet for free members but cannot be withdrawn until `profiles.membership_status = 'premium'`.
+- The server-side withdrawal RPC checks Premium status and the selected wallet balance. Frontend state alone cannot bypass it.
+- A request is stored as `processing`; the negative ledger debit is written in the same database transaction. The member transaction history follows the withdrawal request status, so a reserved debit does not appear as a completed payout while the request is still processing.
+- If an admin rejects it, a matching refund ledger credit is written. If marked completed, it is treated as paid. Admins must only mark completed after sending the money.
+
+## Important limitations
+
+- This update does not connect to a bank transaction feed. A human administrator must independently confirm the incoming Premium payment and outgoing withdrawal.
+- Referral signup attribution is recorded. Referral commission values and automatic payouts remain disabled until the owner confirms the current commission schedule. The existing source has conflicting direct-commission figures, so no amount is guessed.
+- Loan applications are stored for review; no loan is automatically approved or disbursed.
+- Cash rewards for task, quiz, video, game or AI-chat activity are not made real by this update. Each reward source still needs server-side eligibility, anti-abuse controls and funding approval before being credited.
+- A successful production build has not yet been verified in this environment because dependency installation did not complete.
+
+## MOVA payment details
+
 - Account name: MOVA DIGITAL HUB
 - Account number: 3004611364
 - Bank: KUDA MICROFINANCE BANK
-- Premium fee: ₦12,000
+- Premium upgrade: ₦12,000
 
-## Required owner configuration before deployment
-1. No Paystack key is required for the manual withdrawal bank-details form.
-3. Add `VITE_PAYMENT_SUPPORT_TELEGRAM` with the exact payment reviewer's Telegram username, without @. The app cannot know or invent this username.
-4. Add `OPENAI_API_KEY` to enable the MOVA AI Assistant. This key must be server-only.
-5. Add Supabase project URL and anon key only after the app's authentication and database integration is implemented. The current source still does not have live Supabase auth, cross-device payment queue, or server-side admin verification.
+## MOVA official Telegram channel
 
-## Do not launch as a live money platform yet
-The current front-end can demonstrate the user journey, but it is not production-connected. Payment proof is handed to a human reviewer through Telegram. There is no automatic Kuda transaction feed or bank webhook in this build. The admin cannot securely approve users across devices until the Supabase backend and protected admin API are implemented. Withdrawal requests in this front-end build are stored in the current browser session/local app state only. They are not yet written to a shared admin queue or Supabase. That server-side workflow is a separate next step and has deliberately not been changed here.
+https://t.me/Movaofficials1
 
-
-## Security action: exposed Paystack test secret
-A Paystack secret key was pasted into a chat. Treat it as exposed and rotate it immediately in Paystack Dashboard → Settings → API Keys & Webhooks. Generate a replacement test secret key if you still use Paystack elsewhere. This withdrawal update does not use that key. Do not put the key in this ZIP, React code, GitHub, screenshots, or chat. The previously pasted key was a test-mode key, not a live production key.
-
-## Bank account name lookup
-The withdrawal form accepts the bank name, 10-digit account number and account holder name entered by the member. These details are not automatically verified in this version and must be checked by the payout reviewer before money is sent.
-
-## Member chat and AI
-The Global Chat UI no longer presents sample people as real online members. It shows an empty state until real members are loaded from a shared authenticated database. A single server-side OpenAI API key can power a clearly labelled AI assistant, but it must not be used to impersonate fictional profiles as real people. Real member-to-member chat requires Supabase Auth, member profiles, and Supabase Realtime (or another authenticated messaging backend).
-
-## Admin dashboard visibility
-The member-facing Admin Panel links have been removed from the public navigation. This is only UI hiding, not a security boundary. Do not use client-side role flags as the only protection. For a separate admin URL without buying another domain, deploy the admin app as a separate Vercel project and use its free `*.vercel.app` hostname, then enforce server-side admin authentication and database row-level security. A separate URL alone does not secure the admin data.
-
-
-## Bank verification update (Nov 18)
-The withdrawal form now uses the project's local Nigerian bank list and accepts the account name manually. No Paystack bank lookup or account verification request is made. The reviewer must independently check the account details before making a payout.
-
-## MOVA AI Chat
-The active Global Chat route has been changed to a clearly labelled MOVA AI Chat. It uses one server-side OpenAI API key for the application, not individual keys per member. The key must be stored as `OPENAI_API_KEY` in Vercel Environment Variables and must never be placed in browser code or this ZIP. The default model is `gpt-4.1-mini`; optionally set `OPENAI_CHAT_MODEL` to another model available to your API project.
-AI conversations do not earn the old human-to-human chat reward. AI is not a real member, and AI replies must not be presented as human members. This chat is a UI/API integration only; conversation history is held in the current browser session and is not a shared real-time member chat.
-
-## Security
-The OpenAI key posted in the conversation should be revoked immediately and replaced. Do not reuse it. The Paystack key previously pasted in chat should also be rotated. Store the replacement OpenAI key only in Vercel as `OPENAI_API_KEY`. The withdrawal form no longer uses a Paystack secret key.
+This is an announcement channel, not a payment-support inbox. The member dashboard links to it as the pinned official community channel.

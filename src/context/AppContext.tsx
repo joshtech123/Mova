@@ -13,7 +13,7 @@ import {
   WithdrawalRequest,
   LoanApplication,
   PlatformSettings,
-} from '../types';
+} from '../types/index';
 import { INITIAL_SETTINGS, INITIAL_VIDEOS, INITIAL_QUIZ, INITIAL_CLICKS } from '../data/mockData';
 import { getSavedSession, saveSession, signIn, signUp, signOut, loadProfile } from '../lib/supabaseAuth';
 
@@ -26,6 +26,7 @@ export interface ToastMessage {
 
 interface AppContextType {
   user: User | null;
+  authReady: boolean;
   wallet: WalletState;
   transactions: Transaction[];
   videos: VideoTask[];
@@ -64,15 +65,16 @@ interface AppContextType {
     bankName: string,
     accountNumber: string,
     accountName: string
-  ) => { success: boolean; message: string };
+  ) => Promise<{ success: boolean; message: string }>;
   applyForLoan: (
     amount: number,
     tenureMonths: number,
     bankName: string,
     accountNumber: string,
+    accountName: string,
     monthlyIncome: number,
     employmentStatus: string
-  ) => { success: boolean; message: string };
+  ) => Promise<{ success: boolean; message: string }>;
   simulateReferralSale: (name?: string, tier?: 1 | 2 | 3) => void;
   adminApproveWithdrawal: (id: string) => void;
   adminRejectWithdrawal: (id: string) => void;
@@ -111,11 +113,11 @@ const DEFAULT_WALLET: WalletState = {
 };
 
 
-async function fetchWalletSnapshot(accessToken: string): Promise<{ wallet: WalletState; transactions: Transaction[] }> {
+async function fetchWalletSnapshot(accessToken: string): Promise<{ wallet: WalletState; transactions: Transaction[]; withdrawals: WithdrawalRequest[]; loans: LoanApplication[] }> {
   const response = await fetch('/api/wallet', { headers: { Authorization: `Bearer ${accessToken}` } });
   const data = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(data.error || 'Could not load your wallet.');
-  return { wallet: { ...DEFAULT_WALLET, ...data.wallet }, transactions: Array.isArray(data.transactions) ? data.transactions : [] };
+  return { wallet: { ...DEFAULT_WALLET, ...data.wallet }, transactions: Array.isArray(data.transactions) ? data.transactions : [], withdrawals: Array.isArray(data.withdrawals) ? data.withdrawals : [], loans: Array.isArray(data.loans) ? data.loans : [] };
 }
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -133,6 +135,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return () => window.removeEventListener('popstate', handlePopState);
   }, []);
   const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(false);
   const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [videos, setVideos] = useState<VideoTask[]>(INITIAL_VIDEOS);
@@ -178,7 +181,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   // wallet/API outage never signs a valid member out of their account.
   useEffect(() => {
     const session = getSavedSession();
-    if (!session?.access_token || !session?.user?.id) return;
+    if (!session?.access_token || !session?.user?.id) { setAuthReady(true); return; }
     (async () => {
       try {
         const profile = await loadProfile(session.user.id, session.access_token);
@@ -191,19 +194,23 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
           country: profile.country || 'Nigeria',
           countryCode: 'NG',
           role: profile.role,
+          isVerified: false,
           membershipStatus: profile.membership_status === 'premium' ? 'premium' : 'unactivated',
         isPremium: profile.membership_status === 'premium',
           referralCode: profile.referral_code,
+          referredBy: profile.referred_by || undefined,
           wallets: DEFAULT_WALLET,
           stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 },
           createdAt: profile.created_at,
         };
         setUser(mapped);
-        setCurrentPage('dashboard');
+        if (['landing','login','register','forgot'].includes(currentPage)) setCurrentPage('dashboard');
         try {
           const snapshot = await fetchWalletSnapshot(session.access_token);
           setWallet(snapshot.wallet);
           setTransactions(snapshot.transactions);
+          setWithdrawals(snapshot.withdrawals);
+          setLoans(snapshot.loans);
         } catch (walletError) {
           addToast({ type: 'error', title: 'Wallet temporarily unavailable', message: walletError instanceof Error ? walletError.message : 'Your account is signed in, but wallet details could not be loaded.' });
         }
@@ -212,6 +219,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         setUser(null);
         setWallet(DEFAULT_WALLET);
         setTransactions([]);
+      } finally {
+        setAuthReady(true);
       }
     })();
   }, []);
@@ -284,9 +293,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         country: profile.country || 'Nigeria',
         countryCode: 'NG',
         role: profile.role,
+        isVerified: false,
         membershipStatus: profile.membership_status === 'premium' ? 'premium' : 'unactivated',
         isPremium: profile.membership_status === 'premium',
         referralCode: profile.referral_code,
+        referredBy: profile.referred_by || undefined,
         createdAt: profile.created_at,
       };
       setUser(mapped);
@@ -295,6 +306,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const snapshot = await fetchWalletSnapshot(session.access_token);
         setWallet(snapshot.wallet);
         setTransactions(snapshot.transactions);
+        setWithdrawals(snapshot.withdrawals);
+        setLoans(snapshot.loans);
         const pendingEmail = localStorage.getItem(PENDING_WELCOME_EMAIL_KEY);
         if (pendingEmail && pendingEmail.toLowerCase() === (session.user.email || email).toLowerCase() && snapshot.wallet.welcomePackBalance >= 9100) {
           setWelcomeCelebration({ fullName: profile.full_name, amount: 9100 });
@@ -318,6 +331,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         username: data.username || '',
         phone: data.phone || '',
         country: data.country || 'Nigeria',
+        referred_by: data.referredBy || '',
       });
 
       // Supabase may require email confirmation before issuing a session. Keep a
@@ -338,9 +352,11 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         country: profile.country || 'Nigeria',
         countryCode: data.countryCode || 'NG',
         role: profile.role,
+        isVerified: false,
         membershipStatus: profile.membership_status === 'premium' ? 'premium' : 'unactivated',
         isPremium: profile.membership_status === 'premium',
         referralCode: profile.referral_code,
+        referredBy: profile.referred_by || undefined,
         createdAt: profile.created_at,
       };
       setUser(mapped);
@@ -350,6 +366,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         const snapshot = await fetchWalletSnapshot(result.access_token);
         setWallet(snapshot.wallet);
         setTransactions(snapshot.transactions);
+        setWithdrawals(snapshot.withdrawals);
+        setLoans(snapshot.loans);
         if (snapshot.wallet.welcomePackBalance >= 9100) {
           setWelcomeCelebration({ fullName: profile.full_name, amount: 9100 });
           localStorage.removeItem(PENDING_WELCOME_EMAIL_KEY);
@@ -468,81 +486,63 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     return false;
   };
 
-  const requestWithdrawal = (
+  const requestWithdrawal = async (
     amount: number,
     walletSource: 'task' | 'referral' | 'welcome_pack',
     bankName: string,
     accountNumber: string,
     accountName: string
-  ): { success: boolean; message: string } => {
+  ): Promise<{ success: boolean; message: string }> => {
     if (!user) return { success: false, message: 'Please sign in to request withdrawals.' };
-    if (user.membershipStatus !== 'premium') {
-      return { success: false, message: 'Upgrade to MOVA Premium (₦12,000) before withdrawing your welcome bonus or other earnings.' };
+    if (user.membershipStatus !== 'premium') return { success: false, message: 'Upgrade to MOVA Premium before withdrawing.' };
+    const session = getSavedSession();
+    if (!session?.access_token) return { success: false, message: 'Your session has expired. Sign in again.' };
+    try {
+      const response = await fetch('/api/mova-operations', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'withdrawal-create', amount, walletSource, bankName, accountNumber, accountName }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not submit withdrawal request.');
+      const snapshot = await fetchWalletSnapshot(session.access_token);
+      setWallet(snapshot.wallet);
+      setTransactions(snapshot.transactions);
+      setWithdrawals(snapshot.withdrawals);
+      setLoans(snapshot.loans);
+      addToast({ type: 'success', title: 'Withdrawal request submitted', message: 'Your request is saved as Processing. Payment has not yet been sent.' });
+      return { success: true, message: 'Withdrawal request submitted.' };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Withdrawal service is temporarily unavailable.' };
     }
-    if (!settings.withdrawalEnabled) return { success: false, message: 'Withdrawals are temporarily unavailable.' };
-    if (!Number.isFinite(amount) || amount < settings.minWithdrawal) {
-      return { success: false, message: `Minimum withdrawal amount is ₦${settings.minWithdrawal.toLocaleString()}.` };
-    }
-    if (!bankName.trim() || !/^\d{10}$/.test(accountNumber) || !accountName.trim()) {
-      return { success: false, message: 'Enter a bank, valid 10-digit account number and account holder name.' };
-    }
-
-    const sourceBalance = walletSource === 'task'
-      ? wallet.taskBalance
-      : walletSource === 'referral'
-        ? wallet.referralBalance
-        : wallet.welcomePackBalance;
-    if (amount > sourceBalance) {
-      return { success: false, message: `Insufficient funds in selected wallet. Available: ₦${sourceBalance.toLocaleString()}.` };
-    }
-
-    const reference = `MOV-WDR-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-    const date = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-    setWallet((previous) => ({
-      ...previous,
-      availableBalance: Math.max(0, previous.availableBalance - amount),
-      taskBalance: walletSource === 'task' ? previous.taskBalance - amount : previous.taskBalance,
-      referralBalance: walletSource === 'referral' ? previous.referralBalance - amount : previous.referralBalance,
-      welcomePackBalance: walletSource === 'welcome_pack' ? previous.welcomePackBalance - amount : previous.welcomePackBalance,
-    }));
-
-    const newRequest: WithdrawalRequest = {
-      id: 'wdr-' + Math.random().toString(36).substring(2, 9),
-      date,
-      amount,
-      walletSource,
-      bankName: bankName.trim(),
-      accountNumber,
-      accountName: accountName.trim(),
-      status: 'processing',
-      reference,
-      notes: 'Request received. Payment has not yet been sent.',
-    };
-    setWithdrawals((previous) => [newRequest, ...previous]);
-    const newTransaction: Transaction = {
-      id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date,
-      description: `Withdrawal request to ${bankName.trim()} (${accountNumber})`,
-      amount,
-      type: 'debit',
-      category: 'withdrawal',
-      reference,
-      status: 'pending',
-    };
-    setTransactions((previous) => [newTransaction, ...previous]);
-    addToast({ type: 'success', title: 'Withdrawal request submitted', message: `₦${amount.toLocaleString()} is now marked as Processing. Payment will be made after review.` });
-    return { success: true, message: 'Withdrawal request submitted for processing.' };
   };
 
-  const applyForLoan = (
-    _amount: number,
-    _tenureMonths: number,
-    _bankName: string,
-    _accountNumber: string,
-    _monthlyIncome: number,
-    _employmentStatus: string
-  ): { success: boolean; message: string } => {
-    return { success: false, message: 'Loan applications are not accepting submissions yet. MOVA must connect secure member records, account verification and a lending partner before applications can be processed.' };
+  const applyForLoan = async (
+    amount: number,
+    tenureMonths: number,
+    bankName: string,
+    accountNumber: string,
+    accountName: string,
+    monthlyIncome: number,
+    employmentStatus: string
+  ): Promise<{ success: boolean; message: string }> => {
+    if (!user) return { success: false, message: 'Please sign in to apply.' };
+    if (user.membershipStatus !== 'premium') return { success: false, message: 'MOVA Premium is required before applying for a loan.' };
+    const session = getSavedSession();
+    if (!session?.access_token) return { success: false, message: 'Your session has expired. Sign in again.' };
+    try {
+      const response = await fetch('/api/mova-operations', {
+        method: 'POST', headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ action: 'loan-submit', amount, tenureMonths, bankName, accountNumber, accountName, monthlyIncome, employmentStatus }),
+      });
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(result.error || 'Could not submit your loan application.');
+      const snapshot = await fetchWalletSnapshot(session.access_token);
+      setLoans(snapshot.loans);
+      return { success: true, message: result.message || 'Your loan application has been saved for review.' };
+    } catch (error) {
+      return { success: false, message: error instanceof Error ? error.message : 'Loan service is temporarily unavailable.' };
+    }
   };
 
   const simulateReferralSale = (_name?: string, _tier?: 1 | 2 | 3) => {
@@ -682,6 +682,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     <AppContext.Provider
       value={{
         user,
+        authReady,
         wallet,
         transactions,
         videos,

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import { VideoTask } from '../types';
+import { VideoTask } from '../types/index';
 import { Video, Clock, CheckCircle2, Play, Sparkles, AlertCircle, X, ShieldCheck } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
