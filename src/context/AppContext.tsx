@@ -107,6 +107,14 @@ const DEFAULT_WALLET: WalletState = {
   lifetimeEarnings: 0,
 };
 
+
+async function fetchWalletSnapshot(accessToken: string): Promise<{ wallet: WalletState; transactions: Transaction[] }> {
+  const response = await fetch('/api/wallet', { headers: { Authorization: `Bearer ${accessToken}` } });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.error || 'Could not load your wallet.');
+  return { wallet: { ...DEFAULT_WALLET, ...data.wallet }, transactions: Array.isArray(data.transactions) ? data.transactions : [] };
+}
+
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [currentPage, setCurrentPageState] = useState<string>(() => pageFromPath(window.location.pathname));
   const setCurrentPage = (page: string) => {
@@ -160,14 +168,21 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState<number>(2);
 
-  // Restore a real Supabase session and profile on page load.
+  // Restore the authenticated member and load financial data only from the server ledger.
   useEffect(() => {
     const session = getSavedSession();
     if (!session?.access_token || !session?.user?.id) return;
-    loadProfile(session.user.id, session.access_token).then((profile) => {
-      const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
-      setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');
-    }).catch(() => { saveSession(null); });
+    (async () => {
+      try {
+        const profile = await loadProfile(session.user.id, session.access_token);
+        const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: DEFAULT_WALLET, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
+        const snapshot = await fetchWalletSnapshot(session.access_token);
+        setUser(mapped); setWallet(snapshot.wallet); setTransactions(snapshot.transactions); setCurrentPage('dashboard');
+      } catch {
+        saveSession(null);
+        setUser(null); setWallet(DEFAULT_WALLET); setTransactions([]);
+      }
+    })();
   }, []);
 
   // Load from local storage
@@ -176,9 +191,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const saved = localStorage.getItem(STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (parsed.user) setUser(parsed.user);
-        if (parsed.wallet) setWallet(parsed.wallet);
-        if (parsed.transactions) setTransactions(parsed.transactions);
         if (parsed.videos) setVideos(parsed.videos);
         if (parsed.quizzes) setQuizzes(parsed.quizzes);
         if (parsed.clickTasks) setClickTasks(parsed.clickTasks);
@@ -200,9 +212,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       localStorage.setItem(
         STORAGE_KEY,
         JSON.stringify({
-          user,
-          wallet,
-          transactions,
           videos,
           quizzes,
           clickTasks,
@@ -217,7 +226,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     } catch {
       // Ignore quota errors
     }
-  }, [user, wallet, transactions, videos, quizzes, clickTasks, referrals, withdrawals, loans, settings, talkingStages, chatMessages]);
+  }, [user, videos, quizzes, clickTasks, referrals, withdrawals, loans, settings, talkingStages, chatMessages]);
 
   const addToast = (toast: Omit<ToastMessage, 'id'>) => {
     const id = 'toast-' + Math.random().toString(36).substring(2, 9);
@@ -236,7 +245,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       const session = await signIn(email.trim(), password);
       const profile = await loadProfile(session.user.id, session.access_token);
       const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || email, phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
-      setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');
+      setUser(mapped);
+      const snapshot = await fetchWalletSnapshot(session.access_token);
+      setWallet(snapshot.wallet); setTransactions(snapshot.transactions); setCurrentPage('dashboard');
       addToast({ type: 'success', title: 'Welcome back', message: 'You are now signed in to MOVA.' });
       return true;
     } catch (error) { addToast({ type: 'error', title: 'Sign-in failed', message: error instanceof Error ? error.message : 'Please try again.' }); return false; }
@@ -248,15 +259,17 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       if (!result.access_token) { addToast({ type: 'error', title: 'Email confirmation is still enabled', message: 'Turn off Confirm email in Supabase Authentication settings to allow registration without email verification.' }); return false; }
       const profile = await loadProfile(result.user.id, result.access_token);
       const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: result.user.email || data.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: data.countryCode || 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
-      setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');
-      addToast({ type: 'success', title: 'Account created', message: 'Your MOVA account is ready. Your welcome bonus is displayed separately from withdrawable funds.' });
+      setUser(mapped);
+      const snapshot = await fetchWalletSnapshot(result.access_token);
+      setWallet(snapshot.wallet); setTransactions(snapshot.transactions); setCurrentPage('dashboard');
+      addToast({ type: 'success', title: 'Account created', message: 'Your MOVA account is ready. Your welcome bonus is included in your available balance.' });
       return true;
     } catch (error) { addToast({ type: 'error', title: 'Registration failed', message: error instanceof Error ? error.message : 'Please try again.' }); return false; }
   };
 
   const logout = async () => {
     await signOut();
-    setUser(null);
+    setUser(null); setWallet(DEFAULT_WALLET); setTransactions([]);
     setCurrentPage('landing');
     addToast({
       type: 'info',
@@ -426,7 +439,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reference: ref,
       status: 'pending',
     };
-    setTransactions((prev) => [newTx, ...prev]);
 
     addToast({
       type: 'success',
@@ -455,9 +467,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const adminApproveWithdrawal = (id: string) => {
     setWithdrawals((prev) =>
       prev.map((w) => (w.id === id ? { ...w, status: 'successful', notes: 'Payout approved & disbursed by admin.' } : w))
-    );
-    setTransactions((prev) =>
-      prev.map((t) => (t.id.includes(id) || t.reference.includes(id) ? { ...t, status: 'completed' } : t))
     );
     addToast({
       type: 'success',
@@ -510,7 +519,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       reference: loan.reference,
       status: 'completed',
     };
-    setTransactions((prev) => [newTx, ...prev]);
 
     addToast({
       type: 'success',
@@ -566,7 +574,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetAllData = () => {
     localStorage.removeItem(STORAGE_KEY);
-    setUser(null);
+    setUser(null); setWallet(DEFAULT_WALLET); setTransactions([]);
     setCurrentPage('landing');
     setWallet(DEFAULT_WALLET);
     setTransactions([]);

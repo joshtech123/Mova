@@ -39,7 +39,7 @@ export const WithdrawalPage: React.FC = () => {
   // Available balance for currently selected wallet
   let sourceBalance = wallet.taskBalance;
   if (selectedWallet === 'referral') sourceBalance = wallet.referralBalance;
-  if (selectedWallet === 'welcome_pack') sourceBalance = wallet.welcomePackBalance;
+
 
   const handleVerifyAccount = async () => {
     if (accountNumber.length !== 10 || !bankCode || !bankName) {
@@ -160,7 +160,7 @@ export const WithdrawalPage: React.FC = () => {
           {/* Select Wallet Tabs */}
           <div>
             <label className="block text-xs font-bold text-slate-700 mb-2">Select wallet</label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => setSelectedWallet('task')}
@@ -170,7 +170,7 @@ export const WithdrawalPage: React.FC = () => {
                     : 'border-slate-200 hover:border-slate-300 text-slate-700'
                 }`}
               >
-                <p className="text-[11px] text-slate-500 uppercase font-semibold">Task balance</p>
+                <p className="text-[11px] text-slate-500 uppercase font-semibold">Available balance</p>
                 <p className="text-base font-black text-slate-900 mt-0.5">₦{wallet.taskBalance.toLocaleString()}</p>
               </button>
 
@@ -187,18 +187,10 @@ export const WithdrawalPage: React.FC = () => {
                 <p className="text-base font-black text-slate-900 mt-0.5">₦{wallet.referralBalance.toLocaleString()}</p>
               </button>
 
-              <button
-                type="button"
-                onClick={() => setSelectedWallet('welcome_pack')}
-                className={`p-3.5 rounded-2xl border text-left transition-all ${
-                  selectedWallet === 'welcome_pack'
-                    ? 'border-[#0056FD] bg-blue-50/50 text-[#0056FD] ring-2 ring-blue-100 font-bold'
-                    : 'border-slate-200 hover:border-slate-300 text-slate-700'
-                }`}
-              >
-                <p className="text-[11px] text-slate-500 uppercase font-semibold">Welcome bonus</p>
+              <div className="p-3.5 rounded-2xl border border-orange-200 bg-orange-50/70 text-left">
+                <p className="text-[11px] text-orange-700 uppercase font-semibold">Welcome bonus included</p>
                 <p className="text-base font-black text-slate-900 mt-0.5">₦{wallet.welcomePackBalance.toLocaleString()}</p>
-              </button>
+              </div>
             </div>
           </div>
 
@@ -274,7 +266,7 @@ export const WithdrawalPage: React.FC = () => {
             {accountName && verifiedFor === `${accountNumber}:${bankCode}:${accountName}` && (
               <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Paystack returned account name: {accountName}</span>
+                <span>Verified account name: {accountName}</span>
               </div>
             )}
             {accountName && (

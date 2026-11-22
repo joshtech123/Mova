@@ -86,6 +86,10 @@ export const LandingPage: React.FC = () => {
         <div className="mova-orb mova-orb-blue" aria-hidden="true" />
         <div className="mova-orb mova-orb-orange" aria-hidden="true" />
         <div className="mova-hero-grid" aria-hidden="true" />
+        <div className="mova-hero-texture" aria-hidden="true" />
+        <div className="mova-hero-orbit mova-hero-orbit-one" aria-hidden="true" />
+        <div className="mova-hero-orbit mova-hero-orbit-two" aria-hidden="true" />
+        <div className="mova-hero-shimmer" aria-hidden="true" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
           <div className="mova-hero-content text-center max-w-3xl mx-auto">
             <div className="mova-eyebrow inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#0056FD] text-xs font-bold mb-6">

@@ -7,7 +7,7 @@ export default async function handler(req, res) {
   const bankCode = String(req.body?.bankCode || '').trim();
   const requestedBankName = String(req.body?.bankName || '').trim();
 
-  if (!/^\\d{10}$/.test(accountNumber)) {
+  if (!/^\d{10}$/.test(accountNumber)) {
     return res.status(400).json({ error: 'Enter a valid 10-digit account number.' });
   }
   if (!bankCode || !requestedBankName) {
