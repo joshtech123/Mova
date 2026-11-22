@@ -58,3 +58,48 @@ html[data-theme="dark"] textarea { background:#0b192c; color:#f1f5fb; border-col
 html[data-theme="dark"] .bg-blue-50 { background:#102b50 !important; }
 html[data-theme="dark"] .bg-emerald-50 { background:#10352d !important; }
 html[data-theme="dark"] .bg-amber-50 { background:#3a2b12 !important; }
+
+
+/* MOVA landing experience: subtle motion, depth and responsive visual polish. */
+.mova-hero {
+  isolation: isolate;
+  background: radial-gradient(ellipse at 50% 0%, rgba(36,87,245,.12), transparent 55%),
+              linear-gradient(180deg, #ffffff 0%, #f5f8ff 72%, #f8fbff 100%);
+}
+.mova-hero-grid {
+  position:absolute; inset:0; z-index:-1; opacity:.25; pointer-events:none;
+  background-image: linear-gradient(rgba(36,87,245,.07) 1px, transparent 1px), linear-gradient(90deg, rgba(36,87,245,.07) 1px, transparent 1px);
+  background-size:52px 52px; mask-image:linear-gradient(to bottom, black, transparent 88%);
+}
+.mova-orb { position:absolute; z-index:-1; border-radius:9999px; filter:blur(2px); pointer-events:none; animation:mova-float 9s ease-in-out infinite; }
+.mova-orb-blue { width:360px; height:360px; top:5%; left:-150px; background:radial-gradient(circle, rgba(36,87,245,.18), transparent 68%); }
+.mova-orb-orange { width:320px; height:320px; right:-130px; bottom:0; background:radial-gradient(circle, rgba(255,112,67,.16), transparent 68%); animation-delay:-4s; }
+.mova-hero-content { animation:mova-rise .8s cubic-bezier(.2,.7,.2,1) both; }
+.mova-hero-title { letter-spacing:-.055em; }
+.mova-hero-actions { animation:mova-rise .9s .12s both; }
+.mova-stat-grid > div { transition:transform .25s ease, box-shadow .25s ease; }
+.mova-stat-grid > div:hover { transform:translateY(-5px); box-shadow:0 18px 35px rgba(15,23,42,.10); }
+.mova-theme-button { flex-shrink:0; }
+.mova-auth { background:radial-gradient(ellipse at 50% 0%, rgba(36,87,245,.11), transparent 55%), #f7f9fd; }
+.mova-auth-glow { position:absolute; width:300px; height:300px; border-radius:9999px; filter:blur(70px); pointer-events:none; opacity:.55; }
+.mova-auth-glow-one { background:rgba(36,87,245,.18); top:8%; left:-150px; }
+.mova-auth-glow-two { background:rgba(255,112,67,.13); right:-160px; bottom:5%; }
+.mova-auth-card { position:relative; z-index:1; animation:mova-rise .55s cubic-bezier(.2,.7,.2,1) both; }
+html[data-theme="dark"] .mova-hero { background:radial-gradient(ellipse at 50% 0%, rgba(36,87,245,.22), transparent 55%), linear-gradient(180deg,#081329 0%,#0b192c 100%); }
+html[data-theme="dark"] .mova-hero-grid { opacity:.16; }
+html[data-theme="dark"] .mova-auth { background:radial-gradient(ellipse at 50% 0%, rgba(36,87,245,.18), transparent 55%), #071225; }
+html[data-theme="dark"] .mova-auth-card { background:rgba(16,31,53,.96) !important; border-color:#263b58 !important; }
+html[data-theme="dark"] .mova-theme-button { background:#101f35; border-color:#263b58; color:#e5edf8; }
+html[data-theme="dark"] .mova-landing nav { background:rgba(8,19,41,.88); border-color:#263b58; }
+html[data-theme="dark"] .mova-landing footer { background:#050d1c; }
+@keyframes mova-rise { from { opacity:0; transform:translateY(22px); } to { opacity:1; transform:translateY(0); } }
+@keyframes mova-float { 0%,100% { transform:translate3d(0,0,0) scale(1); } 50% { transform:translate3d(24px,-18px,0) scale(1.06); } }
+@media (max-width:640px) {
+  .mova-hero { padding-top:3.25rem; padding-bottom:4rem; }
+  .mova-orb-blue { width:230px; height:230px; left:-130px; }
+  .mova-orb-orange { width:220px; height:220px; right:-120px; }
+  .mova-stat-grid > div { min-width:0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration:.01ms !important; animation-iteration-count:1 !important; scroll-behavior:auto !important; transition-duration:.01ms !important; }
+}

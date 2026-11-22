@@ -31,6 +31,11 @@ const AppContent: React.FC = () => {
   const { currentPage, user, setCurrentPage } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
 
+  useEffect(() => {
+    const savedTheme = localStorage.getItem('mova-theme') || 'light';
+    document.documentElement.setAttribute('data-theme', savedTheme);
+  }, []);
+
   // Premium-only sections are blocked at the app router as well as in navigation.
   // This is a frontend access gate; matching server/RLS enforcement is still required.
   const premiumOnlyPages = ['chat', 'referral', 'talking-stage', 'loans'];
@@ -41,9 +46,10 @@ const AppContent: React.FC = () => {
   }, [isPremiumLocked, setCurrentPage]);
 
   // If on landing or auth pages without user login
-  if (currentPage === 'landing' || (!user && (currentPage === 'login' || currentPage === 'register'))) {
+  if (currentPage === 'landing' || (!user && (currentPage === 'login' || currentPage === 'register' || currentPage === 'forgot'))) {
     if (currentPage === 'login') return <AuthPage initialMode="login" />;
     if (currentPage === 'register') return <AuthPage initialMode="register" />;
+    if (currentPage === 'forgot') return <AuthPage initialMode="forgot" />;
     return <LandingPage />;
   }
 

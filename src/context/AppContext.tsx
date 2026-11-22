@@ -84,6 +84,17 @@ interface AppContextType {
 
 const STORAGE_KEY = 'mova_platform_state_v1';
 
+const PAGE_PATHS: Record<string, string> = {
+  landing: '/', login: '/login', register: '/create', forgot: '/forgot-password',
+  dashboard: '/dashboard', 'watch-videos': '/videos', quiz: '/quiz',
+  'click-and-earn': '/click-and-earn', chat: '/chat', 'talking-stage': '/talking-stage',
+  games: '/games', 'daily-tasks': '/daily-tasks', upgrade: '/upgrade', referral: '/referrals',
+  earnings: '/earnings', withdrawal: '/withdrawal', loans: '/loans', tutorial: '/tutorials',
+  profile: '/profile', settings: '/settings', admin: '/admin',
+};
+const PATH_PAGES = Object.fromEntries(Object.entries(PAGE_PATHS).map(([page, path]) => [path, page])) as Record<string, string>;
+const pageFromPath = (path: string) => PATH_PAGES[path.replace(/\/$/, '') || '/'] || 'landing';
+
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 
@@ -97,7 +108,19 @@ const DEFAULT_WALLET: WalletState = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentPage, setCurrentPage] = useState<string>('landing');
+  const [currentPage, setCurrentPageState] = useState<string>(() => pageFromPath(window.location.pathname));
+  const setCurrentPage = (page: string) => {
+    setCurrentPageState(page);
+    const nextPath = PAGE_PATHS[page] || '/';
+    if (window.location.pathname !== nextPath) window.history.pushState({ movaPage: page }, '', nextPath);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handlePopState = () => setCurrentPageState(pageFromPath(window.location.pathname));
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
   const [user, setUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
@@ -222,7 +245,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const register = async (data: Partial<User>): Promise<boolean> => {
     try {
       const result = await signUp(data.email || '', String((data as any).password || ''), { full_name: data.fullName || '', username: data.username || '', phone: data.phone || '', country: data.country || 'Nigeria' });
-      if (!result.access_token) { addToast({ type: 'success', title: 'Check your email', message: 'Confirm your email address, then sign in to MOVA.' }); setCurrentPage('login'); return true; }
+      if (!result.access_token) { addToast({ type: 'error', title: 'Email confirmation is still enabled', message: 'Turn off Confirm email in Supabase Authentication settings to allow registration without email verification.' }); return false; }
       const profile = await loadProfile(result.user.id, result.access_token);
       const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: result.user.email || data.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: data.countryCode || 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
       setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');

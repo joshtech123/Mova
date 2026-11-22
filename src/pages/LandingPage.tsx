@@ -18,11 +18,16 @@ import {
   Zap,
   Users,
   Award,
+  Moon,
+  Sun,
 } from 'lucide-react';
 
 export const LandingPage: React.FC = () => {
   const { setCurrentPage } = useApp();
   const [openFaq, setOpenFaq] = useState<number | null>(0);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mova-theme') === 'dark');
+  React.useEffect(() => { document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light'); }, [darkMode]);
+  const toggleTheme = () => { const next = !darkMode; setDarkMode(next); localStorage.setItem('mova-theme', next ? 'dark' : 'light'); };
 
   const faqs = [
     {
@@ -52,13 +57,14 @@ export const LandingPage: React.FC = () => {
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
+    <div className="mova-landing min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans">
       {/* Top Header */}
       <nav className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-slate-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-20 flex items-center justify-between">
           <Logo size="md" showTagline={true} />
 
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3">
+            <button type="button" onClick={toggleTheme} aria-label="Toggle colour theme" title="Toggle light and dark mode" className="mova-theme-button w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 flex items-center justify-center hover:-translate-y-0.5 transition-all">{darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</button>
             <button
               onClick={() => setCurrentPage('login')}
               className="text-xs sm:text-sm font-semibold text-slate-700 hover:text-[#0056FD] px-3 sm:px-4 py-2 transition-colors"
@@ -76,26 +82,29 @@ export const LandingPage: React.FC = () => {
       </nav>
 
       {/* Hero Section */}
-      <section className="relative overflow-hidden pt-12 pb-20 lg:pt-20 lg:pb-28 bg-gradient-to-b from-white via-slate-50 to-blue-50/30">
+      <section className="mova-hero relative overflow-hidden pt-14 pb-20 lg:pt-24 lg:pb-28">
+        <div className="mova-orb mova-orb-blue" aria-hidden="true" />
+        <div className="mova-orb mova-orb-orange" aria-hidden="true" />
+        <div className="mova-hero-grid" aria-hidden="true" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 relative z-10">
-          <div className="text-center max-w-3xl mx-auto">
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#0056FD] text-xs font-bold mb-6">
+          <div className="mova-hero-content text-center max-w-3xl mx-auto">
+            <div className="mova-eyebrow inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-blue-50 border border-blue-200 text-[#0056FD] text-xs font-bold mb-6">
               <Sparkles className="w-4 h-4 text-orange-500" />
               <span>The Next Generation Digital Community</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold tracking-tight text-slate-950 leading-[1.15]">
+            <h1 className="mova-hero-title text-4xl sm:text-5xl lg:text-7xl font-extrabold tracking-tight text-slate-950 leading-[1.08]">
               Connect Globally. <br />
               <span className="text-[#0056FD]">Enjoy More.</span>{' '}
               <span className="text-[#FF6B00]">Get Rewarded.</span>
             </h1>
 
-            <p className="mt-6 text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto">
+            <p className="mova-hero-copy mt-6 text-base sm:text-lg text-slate-600 leading-relaxed max-w-2xl mx-auto">
               Discover a world of communication, entertainment and digital opportunities with MOVA. Connect with
               people, watch short videos, complete activities and explore more ways to participate and earn.
             </p>
 
-            <div className="mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
+            <div className="mova-hero-actions mt-8 flex flex-col sm:flex-row items-center justify-center gap-4">
               <button
                 onClick={() => setCurrentPage('register')}
                 className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-[#0056FD] hover:bg-[#0047D4] text-white font-bold text-base px-8 py-4 rounded-full shadow-lg shadow-blue-500/30 transition-transform active:scale-95"
@@ -103,16 +112,11 @@ export const LandingPage: React.FC = () => {
                 <span>Create Free Account</span>
                 <ArrowRight className="w-5 h-5" />
               </button>
-              <button
-                onClick={() => setCurrentPage('dashboard')}
-                className="w-full sm:w-auto inline-flex items-center justify-center gap-2 bg-white hover:bg-slate-100 text-slate-800 font-bold text-base px-7 py-4 rounded-full border border-slate-200 shadow-xs transition-colors"
-              >
-                <span>Live Demo Dashboard</span>
-              </button>
+
             </div>
 
             {/* Quick Stat Badges */}
-            <div className="mt-12 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto text-left">
+            <div className="mova-stat-grid mt-12 grid grid-cols-2 sm:grid-cols-4 gap-3 max-w-2xl mx-auto text-left">
               <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-xs">
                 <p className="text-xs text-slate-500">Video Reward</p>
                 <p className="text-lg font-extrabold text-[#0056FD]">₦2,000</p>
@@ -524,10 +528,7 @@ export const LandingPage: React.FC = () => {
           <div className="flex flex-col md:flex-row items-center justify-between gap-6 pb-8 border-b border-slate-800">
             <Logo size="md" variant="white" showTagline={true} />
             <div className="flex flex-wrap items-center justify-center gap-6 text-xs text-slate-300">
-              <button onClick={() => setCurrentPage('dashboard')} className="hover:text-white">
-                Dashboard
-              </button>
-              <button onClick={() => setCurrentPage('upgrade')} className="hover:text-white">
+                            <button onClick={() => setCurrentPage('upgrade')} className="hover:text-white">
                 Premium
               </button>
               <button onClick={() => setCurrentPage('tutorial')} className="hover:text-white">

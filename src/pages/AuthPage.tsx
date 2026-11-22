@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { Logo } from '../components/common/Logo';
-import { Mail, Lock, User, Phone, Globe, KeyRound, ArrowRight, ShieldCheck, CheckCircle2 } from 'lucide-react';
+import { Mail, Lock, User, KeyRound, ArrowRight, LoaderCircle, Moon, Sun } from 'lucide-react';
 
 interface AuthPageProps {
   initialMode?: 'login' | 'register' | 'forgot';
@@ -19,7 +19,11 @@ const COUNTRIES = [
 
 export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => {
   const { login, register, setCurrentPage, addToast } = useApp();
-  const [mode, setMode] = useState<'login' | 'register' | 'forgot' | 'verify'>(initialMode);
+  const [mode, setMode] = useState<'login' | 'register' | 'forgot'>(initialMode);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('mova-theme') === 'dark');
+  React.useEffect(() => { document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light'); }, [darkMode]);
+  const toggleTheme = () => { const next = !darkMode; setDarkMode(next); localStorage.setItem('mova-theme', next ? 'dark' : 'light'); };
 
   // Form states
   const [fullName, setFullName] = useState('');
@@ -30,7 +34,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [referralCode, setReferralCode] = useState('');
-  const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState('');
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -53,27 +56,13 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
     }
 
     const selectedCountry = COUNTRIES.find((c) => c.name === country) || COUNTRIES[0];
-    await register({ fullName, username, email, phone, country, countryCode: selectedCountry.code, referredBy: referralCode.trim() || undefined, password } as any);
-  };
-
-  const handleVerifyOtp = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otpCode !== '123456' && otpCode.length !== 6) {
-      setError('Invalid code. Please enter 123456 for demo verification.');
-      return;
+    setIsSubmitting(true);
+    try {
+      const created = await register({ fullName, username, email, phone, country, countryCode: selectedCountry.code, referredBy: referralCode.trim() || undefined, password } as any);
+      if (!created) setError('We could not create your account. Check the error notification and try again.');
+    } finally {
+      setIsSubmitting(false);
     }
-
-    const selectedCountry = COUNTRIES.find((c) => c.name === country) || COUNTRIES[0];
-
-    register({
-      fullName,
-      username,
-      email,
-      phone,
-      country,
-      countryCode: selectedCountry.code,
-      referredBy: referralCode.trim() || undefined,
-    });
   };
 
   const handleLogin = async (e: React.FormEvent) => {
@@ -84,7 +73,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
       return;
     }
 
-    await login(email, password);
+    setIsSubmitting(true);
+    try { const signedIn = await login(email, password); if (!signedIn) setError('Sign-in failed. Check your details and try again.'); } finally { setIsSubmitting(false); }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -93,11 +83,14 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
       setError('Please enter your registered email.');
       return;
     }
-    setError('Password reset is not enabled yet. Please contact MOVA support.');
+    setError('Password reset is not available yet. Please contact MOVA support.');
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col justify-center py-12 sm:px-6 lg:px-8 font-sans">
+    <div className="mova-auth min-h-screen flex flex-col justify-center py-10 sm:py-12 px-3 sm:px-6 lg:px-8 font-sans relative overflow-hidden">
+      <div className="mova-auth-glow mova-auth-glow-one" aria-hidden="true" />
+      <div className="mova-auth-glow mova-auth-glow-two" aria-hidden="true" />
+      <button type="button" onClick={toggleTheme} aria-label="Toggle colour theme" title="Toggle light and dark mode" className="mova-theme-button fixed top-5 right-5 z-20 w-10 h-10 rounded-full border border-slate-200 bg-white text-slate-700 flex items-center justify-center shadow-sm">{darkMode ? <Sun className="w-4 h-4" /> : <Moon className="w-4 h-4" />}</button>
       <div className="sm:mx-auto sm:w-full sm:max-w-md text-center px-4">
         <div className="inline-block cursor-pointer" onClick={() => setCurrentPage('landing')}>
           <Logo size="lg" showTagline={true} />
@@ -106,7 +99,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
         <h2 className="mt-6 text-2xl font-extrabold text-slate-900 tracking-tight">
           {mode === 'login' && 'Sign in to your account'}
           {mode === 'register' && 'Create your MOVA account'}
-          {mode === 'verify' && 'Verify your account'}
           {mode === 'forgot' && 'Reset your password'}
         </h2>
         <p className="mt-2 text-xs sm:text-sm text-slate-600">
@@ -116,6 +108,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
               <button
                 onClick={() => {
                   setMode('register');
+                  setCurrentPage('register');
                   setError('');
                 }}
                 className="font-bold text-[#0056FD] hover:underline"
@@ -130,6 +123,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
               <button
                 onClick={() => {
                   setMode('login');
+                  setCurrentPage('login');
                   setError('');
                 }}
                 className="font-bold text-[#0056FD] hover:underline"
@@ -142,7 +136,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
       </div>
 
       <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md px-4 sm:px-0">
-        <div className="bg-white py-8 px-6 shadow-xl rounded-3xl border border-slate-100 sm:px-10">
+        <div className="mova-auth-card bg-white/95 backdrop-blur-xl py-7 sm:py-8 px-5 sm:px-8 shadow-2xl rounded-[28px] border border-slate-100 sm:px-10">
           {error && (
             <div className="mb-4 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
               {error}
@@ -151,7 +145,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
 
           {/* LOGIN FORM */}
           {mode === 'login' && (
-            <form onSubmit={handleLogin} className="space-y-4">
+            <form onSubmit={handleLogin} className="space-y-4" autoComplete="on">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Email address</label>
                 <div className="relative">
@@ -176,6 +170,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                     type="button"
                     onClick={() => {
                       setMode('forgot');
+                      setCurrentPage('forgot');
                       setError('');
                     }}
                     className="text-xs font-semibold text-[#0056FD] hover:underline"
@@ -201,20 +196,20 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-[#0056FD] hover:bg-[#0047D4] shadow-md shadow-blue-500/20 active:scale-98 transition-transform"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-[#0056FD] hover:bg-[#0047D4] shadow-md shadow-blue-500/20 active:scale-98 transition-all disabled:opacity-60 disabled:cursor-wait"
                 >
-                  <span>Sign In</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isSubmitting ? <><LoaderCircle className="w-4 h-4 animate-spin" /> Signing in...</> : <>Sign In <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </div>
 
-              <p className="mt-4 text-center text-xs text-slate-500">Demo accounts have been removed. Real sign-in will be enabled when MOVA authentication is connected.</p>
+              
             </form>
           )}
 
           {/* REGISTER FORM */}
           {mode === 'register' && (
-            <form onSubmit={handleRegister} className="space-y-3.5">
+            <form onSubmit={handleRegister} className="space-y-3.5" autoComplete="off">
               <div>
                 <label className="block text-xs font-bold text-slate-700 mb-1">Full Name</label>
                 <div className="relative">
@@ -226,7 +221,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                     required
                     value={fullName}
                     onChange={(e) => setFullName(e.target.value)}
-                    placeholder="e.g. Joshua Temitope"
+                    placeholder="Enter your full name"
+                    autoComplete="off"
                     className="block w-full pl-10 pr-3.5 py-2.5 border border-slate-200 rounded-2xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
                   />
                 </div>
@@ -240,7 +236,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                     required
                     value={username}
                     onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/\s+/g, ''))}
-                    placeholder="joshua77"
+                    placeholder="Choose a username"
+                    autoComplete="off"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-2xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
                   />
                 </div>
@@ -269,7 +266,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                     required
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@email.com"
+                    placeholder="Enter your email address"
+                    autoComplete="off"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-2xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
                   />
                 </div>
@@ -281,7 +279,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                     required
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="08012345678"
+                    placeholder="Enter your phone number"
+                    autoComplete="off"
                     className="block w-full px-3.5 py-2.5 border border-slate-200 rounded-2xl text-sm focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
                   />
                 </div>
@@ -329,10 +328,10 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
               <div className="pt-2">
                 <button
                   type="submit"
-                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-[#0056FD] hover:bg-[#0047D4] shadow-md shadow-blue-500/20 active:scale-98 transition-transform"
+                  disabled={isSubmitting}
+                  className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-[#0056FD] hover:bg-[#0047D4] shadow-md shadow-blue-500/20 active:scale-98 transition-all disabled:opacity-60 disabled:cursor-wait"
                 >
-                  <span>Continue to Verification</span>
-                  <ArrowRight className="w-4 h-4" />
+                  {isSubmitting ? <><LoaderCircle className="w-4 h-4 animate-spin" /> Creating account...</> : <>Create Account <ArrowRight className="w-4 h-4" /></>}
                 </button>
               </div>
 
@@ -340,49 +339,6 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                 By registering, you agree to MOVA terms of service and acknowledge that task rewards require verified
                 completion.
               </p>
-            </form>
-          )}
-
-          {/* OTP VERIFICATION */}
-          {mode === 'verify' && (
-            <form onSubmit={handleVerifyOtp} className="space-y-4">
-              <div className="text-center">
-                <div className="w-12 h-12 bg-blue-50 text-[#0056FD] rounded-full flex items-center justify-center mx-auto mb-3">
-                  <ShieldCheck className="w-6 h-6" />
-                </div>
-                <h3 className="font-bold text-slate-900 text-base">Enter 6-Digit Code</h3>
-                <p className="text-xs text-slate-500 mt-1">
-                  We sent a confirmation code to <strong>{email}</strong>. (Use <strong>123456</strong> for instant demo
-                  verification)
-                </p>
-              </div>
-
-              <div>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otpCode}
-                  onChange={(e) => setOtpCode(e.target.value)}
-                  placeholder="123456"
-                  className="block w-full text-center tracking-widest text-2xl font-bold py-3 border border-slate-200 rounded-2xl focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full flex items-center justify-center gap-2 py-3.5 px-4 rounded-2xl text-sm font-bold text-white bg-[#0056FD] hover:bg-[#0047D4] shadow-md"
-              >
-                <span>Verify & Access Dashboard</span>
-                <CheckCircle2 className="w-4 h-4" />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setMode('register')}
-                className="w-full text-xs text-slate-500 hover:text-slate-800 text-center block pt-2"
-              >
-                ← Back to registration details
-              </button>
             </form>
           )}
 
@@ -420,7 +376,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
 
               <button
                 type="button"
-                onClick={() => setMode('login')}
+                onClick={() => { setMode('login'); setCurrentPage('login'); }}
                 className="w-full text-xs text-slate-500 hover:text-slate-800 text-center block pt-2"
               >
                 ← Back to Sign In
