@@ -187,7 +187,7 @@ export interface PremiumPaymentRecord {
   userName: string;
   userEmail: string;
   amount: number; // 12000
-  method: 'bank_transfer' | 'card_simulation' | 'ussd';
+  method: 'bank_transfer';
   reference: string;
   proofNote?: string;
   status: 'pending' | 'approved' | 'rejected';

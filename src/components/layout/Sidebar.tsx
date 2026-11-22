@@ -20,6 +20,7 @@ import {
   LogOut,
   X,
   Shield,
+  Lock,
 } from 'lucide-react';
 import { Logo } from '../common/Logo';
 
@@ -89,6 +90,8 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           {menuItems.map((item) => {
             const Icon = item.icon;
             const isActive = currentPage === item.id;
+            const premiumOnly = ['chat', 'referral', 'talking-stage', 'loans'].includes(item.id);
+            const lockedForMember = premiumOnly && !user?.isPremium;
 
             return (
               <button
@@ -109,7 +112,11 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <span>{item.label}</span>
                 </div>
 
-                {item.badge && (
+                {lockedForMember ? (
+                  <span className="flex items-center gap-1 text-[10px] font-bold text-amber-300 bg-amber-500/10 px-2 py-1 rounded-md">
+                    <Lock className="w-3 h-3" /> Premium
+                  </span>
+                ) : item.badge && (
                   <span
                     className={`text-[10px] font-bold px-1.5 py-0.5 rounded-md ${
                       isActive
@@ -125,29 +132,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               </button>
             );
           })}
-
-          {/* Admin Dashboard Option */}
-          {user?.role === 'admin' && (
-            <div className="pt-2 border-t border-slate-800 mt-2">
-              <button
-                onClick={() => handleNav('admin')}
-                className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-semibold transition-all ${
-                  currentPage === 'admin'
-                    ? 'bg-purple-600 text-white'
-                    : 'text-purple-300 hover:bg-purple-900/30'
-                }`}
-              >
-                <div className="flex items-center gap-3">
-                  <Shield className="w-4 h-4 text-purple-400" />
-                  <span>Admin Panel</span>
-                </div>
-                <span className="text-[10px] bg-purple-500/20 text-purple-300 px-1.5 py-0.5 rounded">
-                  Admin
-                </span>
-              </button>
-            </div>
-          )}
-
           {/* Logout Option */}
           <div className="pt-2 border-t border-slate-800 mt-2">
             <button

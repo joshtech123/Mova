@@ -4,9 +4,9 @@ import { User, Shield, KeyRound, Bell, CheckCircle2, Building, Sparkles } from '
 
 export const ProfilePage: React.FC = () => {
   const { user, setCurrentPage, addToast } = useApp();
-  const [fullName, setFullName] = useState(user?.fullName || 'Oakaka Joshua');
+  const [fullName, setFullName] = useState(user?.fullName || '');
   const [phone, setPhone] = useState(user?.phone || '+2348012345678');
-  const [email, setEmail] = useState(user?.email || 'oakaka@mova.app');
+  const [email, setEmail] = useState(user?.email || '');
 
   const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');

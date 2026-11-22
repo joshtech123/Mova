@@ -55,6 +55,15 @@ export const DashboardPage: React.FC = () => {
 
   return (
     <div className="pb-24 pt-4 px-4 sm:px-6 max-w-4xl mx-auto space-y-4 sm:space-y-5">
+      <div className="rounded-2xl border border-orange-100 bg-orange-50/80 p-4 flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-orange-700">Welcome Bonus</p>
+          <p className="text-2xl font-extrabold text-slate-900 mt-1">₦9,100</p>
+          <p className="text-xs text-slate-600 mt-1">A one-time, non-withdrawable welcome benefit.</p>
+        </div>
+        <span className="shrink-0 rounded-full bg-orange-100 px-3 py-1.5 text-[10px] font-bold text-orange-800">NOT WITHDRAWABLE</span>
+      </div>
+
       {/* 1. BLUE GRADIENT BALANCE CARD (matching reference screenshot) */}
       <div className="relative overflow-hidden rounded-3xl p-6 sm:p-7 text-white shadow-xl bg-gradient-to-br from-[#0062FF] via-[#0052EA] to-[#0038B8]">
         {/* Subtle decorative glow circle */}

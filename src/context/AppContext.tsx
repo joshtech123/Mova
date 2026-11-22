@@ -14,7 +14,8 @@ import {
   LoanApplication,
   PlatformSettings,
 } from '../types';
-import { INITIAL_SETTINGS, INITIAL_VIDEOS, INITIAL_QUIZ, INITIAL_CLICKS, INITIAL_CHAT_USERS } from '../data/mockData';
+import { INITIAL_SETTINGS, INITIAL_VIDEOS, INITIAL_QUIZ, INITIAL_CLICKS } from '../data/mockData';
+import { getSavedSession, saveSession, signIn, signUp, signOut, loadProfile } from '../lib/supabaseAuth';
 
 export interface ToastMessage {
   id: string;
@@ -45,9 +46,9 @@ interface AppContextType {
   // Actions
   addToast: (toast: Omit<ToastMessage, 'id'>) => void;
   removeToast: (id: string) => void;
-  login: (email: string) => boolean;
-  register: (data: Partial<User>) => void;
-  logout: () => void;
+  login: (email: string, password: string) => Promise<boolean>;
+  register: (data: Partial<User>) => Promise<boolean>;
+  logout: () => Promise<void>;
   toggleRole: () => void;
   activatePremium: (paymentMethod: string) => Promise<boolean>;
   completeVideoTask: (videoId: string) => boolean;
@@ -85,19 +86,7 @@ const STORAGE_KEY = 'mova_platform_state_v1';
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
-const DEFAULT_USER: User = {
-  id: 'usr-oakaka',
-  fullName: 'Oakaka Joshua',
-  username: 'Oakaka',
-  email: 'oakaka@mova.app',
-  phone: '+2348012345678',
-  country: 'Nigeria',
-  countryCode: 'NG',
-  membershipStatus: 'unactivated',
-  referralCode: 'MOVA-OAKAKA',
-  isVerified: true,
-  role: 'user',
-};
+
 
 const DEFAULT_WALLET: WalletState = {
   availableBalance: 0,
@@ -108,28 +97,19 @@ const DEFAULT_WALLET: WalletState = {
 };
 
 export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const [currentPage, setCurrentPage] = useState<string>('dashboard');
-  const [user, setUser] = useState<User | null>(DEFAULT_USER);
+  const [currentPage, setCurrentPage] = useState<string>('landing');
+  const [user, setUser] = useState<User | null>(null);
   const [wallet, setWallet] = useState<WalletState>(DEFAULT_WALLET);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [videos, setVideos] = useState<VideoTask[]>(INITIAL_VIDEOS);
   const [quizzes, setQuizzes] = useState<QuizQuestion[]>(INITIAL_QUIZ);
   const [clickTasks, setClickTasks] = useState<ClickTask[]>(INITIAL_CLICKS);
-  const [chatUsers, setChatUsers] = useState<ChatUser[]>(INITIAL_CHAT_USERS);
-  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({
-    'usr-1': [
-      { id: 'm1', senderId: 'usr-1', text: 'Hey Oakaka! Welcome to MOVA.', timestamp: '10:15 AM', isRead: true },
-      { id: 'm2', senderId: 'usr-oakaka', text: 'Hello Amara! How are you doing today?', timestamp: '10:16 AM', isRead: true },
-      { id: 'm3', senderId: 'usr-1', text: 'Doing great! Just wrapped up today’s video tasks.', timestamp: '10:18 AM', isRead: true },
-    ],
-    'usr-2': [
-      { id: 'm4', senderId: 'usr-2', text: 'Akwaaba brother! Connecting from Accra.', timestamp: 'Yesterday', isRead: true },
-    ],
-  });
+  const [chatUsers, setChatUsers] = useState<ChatUser[]>([]);
+  const [chatMessages, setChatMessages] = useState<Record<string, ChatMessage[]>>({});
   const [talkingStages, setTalkingStages] = useState<TalkingStagePartner[]>([
     {
       id: 'ts-1',
-      user: INITIAL_CHAT_USERS[0],
+      user: null,
       messagesCount: 18,
       requiredMessages: 20,
       daysStreak: 3,
@@ -140,7 +120,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     },
     {
       id: 'ts-2',
-      user: INITIAL_CHAT_USERS[1],
+      user: null,
       messagesCount: 7,
       requiredMessages: 20,
       daysStreak: 1,
@@ -156,6 +136,16 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [settings, setSettings] = useState<PlatformSettings>(INITIAL_SETTINGS);
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const [unreadNotifications, setUnreadNotifications] = useState<number>(2);
+
+  // Restore a real Supabase session and profile on page load.
+  useEffect(() => {
+    const session = getSavedSession();
+    if (!session?.access_token || !session?.user?.id) return;
+    loadProfile(session.user.id, session.access_token).then((profile) => {
+      const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
+      setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');
+    }).catch(() => { saveSession(null); });
+  }, []);
 
   // Load from local storage
   useEffect(() => {
@@ -218,49 +208,31 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
-  const login = (email: string) => {
-    if (email.toLowerCase().includes('admin')) {
-      setUser({
-        ...DEFAULT_USER,
-        email,
-        role: 'admin',
-        fullName: 'MOVA Platform Admin',
-        username: 'Admin',
-      });
-    } else {
-      setUser(DEFAULT_USER);
-    }
-    addToast({
-      type: 'success',
-      title: 'Welcome Back',
-      message: `Signed in as ${user?.username || 'Oakaka'}`,
-    });
-    return true;
+  const login = async (email: string, password: string): Promise<boolean> => {
+    try {
+      const session = await signIn(email.trim(), password);
+      const profile = await loadProfile(session.user.id, session.access_token);
+      const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: session.user.email || email, phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
+      setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');
+      addToast({ type: 'success', title: 'Welcome back', message: 'You are now signed in to MOVA.' });
+      return true;
+    } catch (error) { addToast({ type: 'error', title: 'Sign-in failed', message: error instanceof Error ? error.message : 'Please try again.' }); return false; }
   };
 
-  const register = (data: Partial<User>) => {
-    const newUser: User = {
-      ...DEFAULT_USER,
-      ...data,
-      id: 'usr-' + Math.random().toString(36).substring(2, 9),
-      membershipStatus: 'unactivated',
-      role: 'user',
-      referralCode: `MOVA-${(data.username || 'USER').toUpperCase()}`,
-      isVerified: true,
-    };
-    setUser(newUser);
-    // Reset wallet to zero as instructed (no fictitious welcome bonuses)
-    setWallet(DEFAULT_WALLET);
-    setTransactions([]);
-    addToast({
-      type: 'success',
-      title: 'Account Created Successfully',
-      message: 'Welcome to MOVA! Explore activities and unlock premium rewards.',
-    });
-    setCurrentPage('dashboard');
+  const register = async (data: Partial<User>): Promise<boolean> => {
+    try {
+      const result = await signUp(data.email || '', String((data as any).password || ''), { full_name: data.fullName || '', username: data.username || '', phone: data.phone || '', country: data.country || 'Nigeria' });
+      if (!result.access_token) { addToast({ type: 'success', title: 'Check your email', message: 'Confirm your email address, then sign in to MOVA.' }); setCurrentPage('login'); return true; }
+      const profile = await loadProfile(result.user.id, result.access_token);
+      const mapped: User = { id: profile.id, fullName: profile.full_name, username: profile.username, email: result.user.email || data.email || '', phone: profile.phone || '', country: profile.country || 'Nigeria', countryCode: data.countryCode || 'NG', role: profile.role, isPremium: profile.membership_status === 'premium', referralCode: profile.referral_code, wallets: { availableBalance: 0, taskBalance: 0, referralBalance: 0, welcomePackBalance: 0, lifetimeEarnings: 0 }, stats: { totalTasksCompleted: 0, videosWatchedToday: 0, quizzesCompletedToday: 0, clicksCompletedToday: 0, chatMessagesToday: 0, talkingStagesCompleted: 0, referralsCount: 0, activeReferralsCount: 0, qualifiedReferralsCount: 0 }, createdAt: profile.created_at };
+      setUser(mapped); setWallet(DEFAULT_WALLET); setCurrentPage('dashboard');
+      addToast({ type: 'success', title: 'Account created', message: 'Your MOVA account is ready. Your welcome bonus is displayed separately from withdrawable funds.' });
+      return true;
+    } catch (error) { addToast({ type: 'error', title: 'Registration failed', message: error instanceof Error ? error.message : 'Please try again.' }); return false; }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await signOut();
     setUser(null);
     setCurrentPage('landing');
     addToast({
@@ -271,162 +243,27 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const toggleRole = () => {
-    if (!user) return;
-    const newRole = user.role === 'admin' ? 'user' : 'admin';
-    setUser({ ...user, role: newRole });
-    addToast({
-      type: 'info',
-      title: `Switched to ${newRole.toUpperCase()} Mode`,
-      message: newRole === 'admin' ? 'You have access to the Admin Dashboard' : 'Viewing as standard member',
-    });
+    addToast({ type: 'error', title: 'Admin access restricted', message: 'Administrator access must be assigned securely by the platform owner.' });
   };
 
-  const activatePremium = async (paymentMethod: string): Promise<boolean> => {
-    if (!user) return false;
-    const fee = settings.premiumFee; // ₦12,000
-    const ref = `MOV-ACT-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    // Update user status
-    setUser((prev) => (prev ? { ...prev, membershipStatus: 'premium', activatedAt: new Date().toISOString() } : null));
-
-    // Log transaction
-    const newTx: Transaction = {
-      id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      description: `MOVA Premium One-Time Activation (${paymentMethod})`,
-      amount: fee,
-      type: 'debit',
-      category: 'upgrade',
-      reference: ref,
-      status: 'completed',
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    addToast({
-      type: 'success',
-      title: '🎉 Premium Activated!',
-      message: `You are now a MOVA Premium Member. Task earnings & withdrawals are fully unlocked!`,
-    });
-
-    return true;
+  const activatePremium = async (_paymentMethod: string): Promise<boolean> => {
+    addToast({ type: 'error', title: 'Payment confirmation required', message: 'Premium cannot be activated from the browser. An administrator must confirm the payment first.' });
+    return false;
   };
 
-  const completeVideoTask = (videoId: string): boolean => {
-    const video = videos.find((v) => v.id === videoId);
-    if (!video || video.isCompleted) return false;
-
-    const reward = settings.videoReward; // ₦2,000
-    const ref = `MOV-VID-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    setVideos((prev) => prev.map((v) => (v.id === videoId ? { ...v, isCompleted: true } : v)));
-
-    setWallet((prev) => ({
-      ...prev,
-      availableBalance: prev.availableBalance + reward,
-      taskBalance: prev.taskBalance + reward,
-      lifetimeEarnings: prev.lifetimeEarnings + reward,
-    }));
-
-    const newTx: Transaction = {
-      id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      description: `Video Task Reward: "${video.title.slice(0, 28)}..."`,
-      amount: reward,
-      type: 'credit',
-      category: 'video',
-      reference: ref,
-      status: 'completed',
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    addToast({
-      type: 'reward',
-      title: '₦2,000 Credited!',
-      message: 'Video viewing time verified. Reward added to your balance.',
-    });
-
-    return true;
+  const completeVideoTask = (_videoId: string): boolean => {
+    addToast({ type: 'info', title: 'Task rewards are being connected', message: 'Video completion will credit your wallet once MOVA server-side reward verification is enabled.' });
+    return false;
   };
 
-  const answerQuiz = (quizId: string, answerIndex: number) => {
-    const quiz = quizzes.find((q) => q.id === quizId);
-    if (!quiz) return { isCorrect: false, reward: 0, explanation: '' };
-
-    const isCorrect = answerIndex === quiz.correctIndex;
-    const reward = isCorrect ? settings.quizReward : 0; // ₦1,000 only for correct answers
-
-    if (isCorrect) {
-      const ref = `MOV-QZ-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-      setWallet((prev) => ({
-        ...prev,
-        availableBalance: prev.availableBalance + reward,
-        taskBalance: prev.taskBalance + reward,
-        lifetimeEarnings: prev.lifetimeEarnings + reward,
-      }));
-
-      const newTx: Transaction = {
-        id: 'tx-' + Math.random().toString(36).substring(2, 9),
-        date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-        description: `Quiz Correct Answer: "${quiz.question.slice(0, 26)}..."`,
-        amount: reward,
-        type: 'credit',
-        category: 'quiz',
-        reference: ref,
-        status: 'completed',
-      };
-      setTransactions((prev) => [newTx, ...prev]);
-
-      addToast({
-        type: 'reward',
-        title: 'Correct! ₦1,000 Won',
-        message: 'Your answer is verified and credited to your available balance.',
-      });
-    } else {
-      addToast({
-        type: 'error',
-        title: 'Incorrect Answer',
-        message: 'Only correct answers qualify for rewards. Try the next question!',
-      });
-    }
-
-    return { isCorrect, reward, explanation: quiz.explanation };
+  const answerQuiz = (_quizId: string, _answerIndex: number) => {
+    addToast({ type: 'info', title: 'Quiz rewards are being connected', message: 'Quiz scores can be previewed, but cash rewards are paused until server-side validation is enabled.' });
+    return { isCorrect: false, reward: 0, explanation: 'Reward validation is not connected yet.' };
   };
 
-  const completeClickTask = (taskId: string): boolean => {
-    const task = clickTasks.find((t) => t.id === taskId);
-    if (!task || task.isCompleted) return false;
-
-    const reward = settings.clickReward; // ₦1,000
-    const ref = `MOV-CLK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    setClickTasks((prev) => prev.map((t) => (t.id === taskId ? { ...t, isCompleted: true } : t)));
-
-    setWallet((prev) => ({
-      ...prev,
-      availableBalance: prev.availableBalance + reward,
-      taskBalance: prev.taskBalance + reward,
-      lifetimeEarnings: prev.lifetimeEarnings + reward,
-    }));
-
-    const newTx: Transaction = {
-      id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      description: `Sponsored Click Task: "${task.title.slice(0, 26)}..."`,
-      amount: reward,
-      type: 'credit',
-      category: 'click',
-      reference: ref,
-      status: 'completed',
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    addToast({
-      type: 'reward',
-      title: '₦1,000 Credited!',
-      message: 'Sponsored campaign engagement verified.',
-    });
-
-    return true;
+  const completeClickTask = (_taskId: string): boolean => {
+    addToast({ type: 'info', title: 'Task rewards are being connected', message: 'Task credits will be enabled after MOVA server-side verification is connected.' });
+    return false;
   };
 
   const sendChatMessage = (recipientId: string, text: string) => {
@@ -491,41 +328,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }, 1500);
   };
 
-  const claimTalkingStageReward = (stageId: string): boolean => {
-    const stage = talkingStages.find((ts) => ts.id === stageId);
-    if (!stage || stage.status !== 'ready_for_verification') return false;
-
-    const reward = settings.talkingStageReward; // ₦5,000
-    const ref = `MOV-TALK-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    setTalkingStages((prev) => prev.map((ts) => (ts.id === stageId ? { ...ts, status: 'claimed' } : ts)));
-
-    setWallet((prev) => ({
-      ...prev,
-      availableBalance: prev.availableBalance + reward,
-      taskBalance: prev.taskBalance + reward,
-      lifetimeEarnings: prev.lifetimeEarnings + reward,
-    }));
-
-    const newTx: Transaction = {
-      id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      description: `Talking Stage Milestone Verified with @${stage.user.username}`,
-      amount: reward,
-      type: 'credit',
-      category: 'talking_stage',
-      reference: ref,
-      status: 'completed',
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    addToast({
-      type: 'reward',
-      title: '₦5,000 Milestone Paid!',
-      message: 'Talking stage milestone verified and credited.',
-    });
-
-    return true;
+  const claimTalkingStageReward = (_stageId: string): boolean => {
+    addToast({ type: 'info', title: 'Reward review required', message: 'Talking-stage rewards are paused until server-side evidence review is connected.' });
+    return false;
   };
 
   const requestWithdrawal = (
@@ -610,107 +415,20 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   };
 
   const applyForLoan = (
-    amount: number,
-    tenureMonths: number,
-    bankName: string,
-    accountNumber: string,
-    monthlyIncome: number,
-    employmentStatus: string
+    _amount: number,
+    _tenureMonths: number,
+    _bankName: string,
+    _accountNumber: string,
+    _monthlyIncome: number,
+    _employmentStatus: string
   ): { success: boolean; message: string } => {
-    if (!user) return { success: false, message: 'Please log in to apply for a loan.' };
-
-    if (user.membershipStatus !== 'premium') {
-      return {
-        success: false,
-        message: 'Loan applications are exclusive to activated MOVA Premium members.',
-      };
-    }
-
-    if (amount > 500000) {
-      return {
-        success: false,
-        message: 'Maximum loan amount limit is ₦500,000.',
-      };
-    }
-
-    const interestRate = 0.05; // 5% flat annual
-    const totalRepayment = Math.round(amount * (1 + interestRate * (tenureMonths / 12)));
-    const monthlyRepayment = Math.round(totalRepayment / tenureMonths);
-    const ref = `MOV-LOAN-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    const newLoan: LoanApplication = {
-      id: 'loan-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      amount,
-      tenureMonths,
-      monthlyRepayment,
-      totalRepayment,
-      interestRate: 5,
-      status: 'pending',
-      bankName,
-      accountNumber,
-      monthlyIncome,
-      employmentStatus,
-      reference: ref,
-    };
-
-    setLoans((prev) => [newLoan, ...prev]);
-
-    addToast({
-      type: 'success',
-      title: 'Loan Application Submitted',
-      message: `₦${amount.toLocaleString()} application received. Assessment in progress.`,
-    });
-
-    return { success: true, message: 'Application submitted successfully.' };
+    return { success: false, message: 'Loan applications are not accepting submissions yet. MOVA must connect secure member records, account verification and a lending partner before applications can be processed.' };
   };
 
-  const simulateReferralSale = (name = 'Chidi Nnamdi', tier: 1 | 2 | 3 = 1) => {
-    let commission = settings.directReferralCommission; // ₦9,000
-    if (tier === 2) commission = settings.firstIndirectCommission; // ₦300
-    if (tier === 3) commission = settings.secondIndirectCommission; // ₦100
-
-    const ref = `MOV-REF-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
-
-    const newRef: ReferralItem = {
-      id: 'ref-' + Math.random().toString(36).substring(2, 9),
-      fullName: name,
-      username: name.toLowerCase().replace(/\s+/g, '_'),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      tier,
-      commission,
-      status: 'active',
-    };
-
-    setReferrals((prev) => [newRef, ...prev]);
-
-    setWallet((prev) => ({
-      ...prev,
-      availableBalance: prev.availableBalance + commission,
-      referralBalance: prev.referralBalance + commission,
-      lifetimeEarnings: prev.lifetimeEarnings + commission,
-    }));
-
-    const newTx: Transaction = {
-      id: 'tx-' + Math.random().toString(36).substring(2, 9),
-      date: new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }),
-      description: `Tier ${tier} Referral Commission (${name})`,
-      amount: commission,
-      type: 'credit',
-      category: 'referral',
-      reference: ref,
-      status: 'completed',
-    };
-    setTransactions((prev) => [newTx, ...prev]);
-
-    addToast({
-      type: 'reward',
-      title: `₦${commission.toLocaleString()} Referral Bonus!`,
-      message: `Tier ${tier} activation reward earned from ${name}.`,
-    });
+  const simulateReferralSale = (_name?: string, _tier?: 1 | 2 | 3) => {
+    addToast({ type: 'info', title: 'Referral credits are being connected', message: 'Referral commissions will be credited only after a real Premium payment is confirmed by the server.' });
   };
 
-  // Admin Actions
   const adminApproveWithdrawal = (id: string) => {
     setWithdrawals((prev) =>
       prev.map((w) => (w.id === id ? { ...w, status: 'successful', notes: 'Payout approved & disbursed by admin.' } : w))
@@ -825,7 +543,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
   const resetAllData = () => {
     localStorage.removeItem(STORAGE_KEY);
-    setUser(DEFAULT_USER);
+    setUser(null);
+    setCurrentPage('landing');
     setWallet(DEFAULT_WALLET);
     setTransactions([]);
     setVideos(INITIAL_VIDEOS);

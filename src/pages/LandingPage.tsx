@@ -30,8 +30,8 @@ export const LandingPage: React.FC = () => {
       a: 'MOVA is an integrated digital platform connecting people globally through entertainment, communication, and verified digital task opportunities. Members participate in watching sponsored videos, answering educational quizzes, exploring partner links, chatting globally, and accessing premium member benefits.',
     },
     {
-      q: 'What is MOVA Premium and how much is the activation fee?',
-      a: 'MOVA Premium is a single one-time activation priced at ₦12,000. It unlocks full eligible earning tasks, verified withdrawal access directly to your Nigerian bank, and eligibility for zero-collateral loan applications.',
+      q: 'What is MOVA Premium?',
+      a: 'MOVA Premium is an optional membership upgrade that unlocks additional platform features, including eligible earning activities, referrals, Global Communication, Talking Stage and access to loan applications. Loan approval is subject to eligibility and assessment.',
     },
     {
       q: 'How much can I earn per task on MOVA?',
@@ -43,7 +43,7 @@ export const LandingPage: React.FC = () => {
     },
     {
       q: 'How does the MOVA Referral Program work?',
-      a: 'When you invite friends who activate MOVA Premium, you earn ₦9,000 direct commission, plus ₦300 on first indirect activations and ₦100 on second indirect activations. All commissions are credited immediately upon verified partner registration.',
+      a: 'When you invite friends who activate MOVA Premium, you earn the current direct referral commission, plus ₦300 on first indirect activations and ₦100 on second indirect activations. All commissions are credited immediately upon verified partner registration.',
     },
     {
       q: 'Are loans guaranteed for everyone?',
@@ -129,9 +129,9 @@ export const LandingPage: React.FC = () => {
                 <p className="text-[10px] text-slate-400">verified milestone</p>
               </div>
               <div className="bg-white p-3.5 rounded-2xl border border-slate-100 shadow-xs">
-                <p className="text-xs text-slate-500">Direct Referral</p>
-                <p className="text-lg font-extrabold text-emerald-600">₦9,000</p>
-                <p className="text-[10px] text-slate-400">per activation</p>
+                <p className="text-xs text-slate-500">Referrals</p>
+                <p className="text-lg font-extrabold text-emerald-600">Rewards</p>
+                <p className="text-[10px] text-slate-400">on eligible referrals</p>
               </div>
             </div>
           </div>
@@ -178,8 +178,17 @@ export const LandingPage: React.FC = () => {
               </div>
             </div>
 
+            {/* MOVA introduction artwork */}
+            <div className="rounded-3xl overflow-hidden border border-slate-200/70 shadow-xl bg-[#071044]">
+              <img
+                src="/assets/mova/about-mova.png"
+                alt="Introducing the MOVA platform and its key features"
+                className="block w-full h-auto object-cover"
+                loading="lazy"
+              />
+            </div>
             {/* Feature Card Preview */}
-            <div className="bg-[#0B192C] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
+            <div className="hidden bg-[#0B192C] text-white p-6 sm:p-8 rounded-3xl shadow-xl relative overflow-hidden">
               <div className="absolute top-0 right-0 w-64 h-64 bg-[#0056FD]/20 rounded-full blur-3xl pointer-events-none" />
               <div className="relative z-10">
                 <div className="flex items-center justify-between pb-4 border-b border-slate-800">
@@ -318,6 +327,10 @@ export const LandingPage: React.FC = () => {
               </p>
             </div>
           </div>
+          <div className="mt-10 grid grid-cols-1 lg:grid-cols-2 gap-6 items-center">
+            <img src="/assets/mova/mova-rewards.png" alt="MOVA rewards and qualifying chat milestones" className="w-full h-auto rounded-3xl border border-slate-200 shadow-lg" loading="lazy" />
+            <img src="/assets/mova/mova-global-chat.png" alt="Chat, connect and earn on MOVA" className="w-full h-auto rounded-3xl border border-slate-200 shadow-lg" loading="lazy" />
+          </div>
         </div>
       </section>
 
@@ -326,22 +339,18 @@ export const LandingPage: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-10 items-stretch">
             {/* Premium Card */}
-            <div className="bg-[#0F2038] border border-[#1E3A5F] rounded-3xl p-8 flex flex-col justify-between">
+            <div className="bg-[#0F2038] border border-[#1E3A5F] rounded-3xl p-6 sm:p-8 flex flex-col justify-between overflow-hidden">
+              <img src="/assets/mova/mova-premium.png" alt="MOVA Premium membership benefits" className="w-full h-auto rounded-2xl mb-6" loading="lazy" />
               <div>
                 <div className="inline-flex items-center gap-2 bg-orange-500/20 text-orange-400 text-xs font-bold px-3 py-1 rounded-full mb-4">
                   <Sparkles className="w-3.5 h-3.5" />
                   <span>Single Transparent Tier</span>
                 </div>
-                <h3 className="text-2xl sm:text-3xl font-extrabold text-white">MOVA Premium Activation</h3>
+                <h3 className="text-2xl sm:text-3xl font-extrabold text-white">MOVA Premium</h3>
                 <p className="text-slate-300 mt-2 text-sm">
                   One-time activation gives you unlimited access to funded earning tasks and priority weekday bank
                   withdrawals.
                 </p>
-
-                <div className="mt-6 flex items-baseline gap-2">
-                  <span className="text-4xl font-extrabold text-[#0056FD]">₦12,000</span>
-                  <span className="text-xs text-slate-400">one-time fee</span>
-                </div>
 
                 <div className="mt-6 space-y-2.5 text-sm text-slate-200">
                   <div className="flex items-center gap-2.5">
@@ -358,21 +367,22 @@ export const LandingPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2.5">
                     <CheckCircle2 className="w-4 h-4 text-emerald-400 shrink-0" />
-                    <span>₦9,000 direct referral commission bonus</span>
+                    <span>Referral rewards on qualifying verified activations</span>
                   </div>
                 </div>
               </div>
 
               <button
-                onClick={() => setCurrentPage('register')}
+                onClick={() => setCurrentPage('upgrade')}
                 className="mt-8 w-full bg-[#0056FD] hover:bg-[#0047D4] text-white font-bold py-3.5 rounded-2xl shadow-lg transition-transform active:scale-95 text-center text-sm"
               >
-                Activate Premium Now
+                Explore Premium
               </button>
             </div>
 
             {/* Loan Card */}
-            <div className="bg-[#0F2038] border border-[#1E3A5F] rounded-3xl p-8 flex flex-col justify-between">
+            <div className="bg-[#0F2038] border border-[#1E3A5F] rounded-3xl p-6 sm:p-8 flex flex-col justify-between overflow-hidden">
+              <img src="/assets/mova/mova-loans.png" alt="MOVA loan programme information" className="w-full h-auto rounded-2xl mb-6" loading="lazy" />
               <div>
                 <div className="inline-flex items-center gap-2 bg-blue-500/20 text-blue-400 text-xs font-bold px-3 py-1 rounded-full mb-4">
                   <TrendingUp className="w-3.5 h-3.5" />
@@ -445,7 +455,7 @@ export const LandingPage: React.FC = () => {
               </div>
               <h3 className="font-bold text-slate-900 text-base">Activate Premium</h3>
               <p className="text-xs text-slate-600 mt-2">
-                Pay the one-time ₦12,000 fee via card or bank transfer to unlock full verified earning tasks.
+                Choose the Premium membership upgrade and follow the secure payment instructions on the upgrade page.
               </p>
             </div>
 

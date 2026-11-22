@@ -4,54 +4,50 @@ import {
   Sparkles,
   CheckCircle2,
   ShieldCheck,
-  CreditCard,
-  Building,
-  ArrowRight,
   Copy,
-  Clock,
   Check,
-  AlertCircle,
 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 export const UpgradePage: React.FC = () => {
-  const { user, activatePremium, settings, transactions, addToast } = useApp();
-  const [paymentMethod, setPaymentMethod] = useState<'card' | 'transfer'>('card');
+  const { user, settings, transactions, addToast } = useApp();
   const [transferRef, setTransferRef] = useState('');
-  const [isProcessing, setIsProcessing] = useState(false);
   const [copiedAccount, setCopiedAccount] = useState(false);
 
   const upgradeTransactions = transactions.filter((t) => t.category === 'upgrade');
 
   const handleCopyAccount = () => {
-    navigator.clipboard.writeText('8123456789');
+    navigator.clipboard.writeText('3004611364');
     setCopiedAccount(true);
     addToast({
       type: 'info',
       title: 'Copied to Clipboard',
-      message: 'MOVA dedicated account number copied.',
+      message: 'MOVA account number copied.',
     });
     setTimeout(() => setCopiedAccount(false), 2500);
   };
 
   const handlePay = async () => {
-    setIsProcessing(true);
-    const methodLabel = paymentMethod === 'card' ? 'Online Card / Instant Checkout' : `Bank Transfer Ref: ${transferRef || 'AUTO-TRANSFER'}`;
-
-    // Simulate realistic payment processing
-    setTimeout(async () => {
-      await activatePremium(methodLabel);
-      setIsProcessing(false);
-      try {
-        confetti({
-          particleCount: 90,
-          spread: 75,
-          origin: { y: 0.5 },
-        });
-      } catch {
-        // ignore
-      }
-    }, 1800);
+    if (!transferRef.trim()) {
+      addToast({ type: 'error', title: 'Transfer reference required', message: 'Enter the transaction reference shown on your bank receipt.' });
+      return;
+    }
+    const telegramUsername = (import.meta.env.VITE_PAYMENT_SUPPORT_TELEGRAM || '').replace(/^@/, '').trim();
+    if (!telegramUsername) {
+      addToast({ type: 'error', title: 'Payment support is not configured', message: 'The MOVA owner must add the payment confirmer Telegram username in Vercel before members can submit proof.' });
+      return;
+    }
+    const message = [
+      'Hello MOVA Payment Team, I have made my Premium payment.',
+      `Name: ${user?.fullName || 'Not available'}`,
+      `Email: ${user?.email || 'Not available'}`,
+      `Amount: ₦${settings.premiumFee.toLocaleString()}`,
+      `Transfer reference: ${transferRef.trim()}`,
+      'Please confirm the payment. I will attach my transfer receipt here.'
+    ].join('\\n');
+    const telegramUrl = `https://t.me/${telegramUsername}?text=${encodeURIComponent(message)}`;
+    window.open(telegramUrl, '_blank', 'noopener,noreferrer');
+    addToast({ type: 'info', title: 'Continue in Telegram', message: 'Send the prefilled message and attach your transfer receipt. Premium stays pending until payment is confirmed.' });
   };
 
   return (
@@ -85,14 +81,14 @@ export const UpgradePage: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. Single MOVA Premium Card (Distinct from 3SFE's 4 packages) */}
+      {/* MOVA Premium membership card */}
       <div className="bg-white rounded-3xl p-6 sm:p-8 border border-slate-200/80 shadow-md">
         <div className="flex flex-col md:flex-row md:items-center justify-between pb-6 border-b border-slate-100 gap-4">
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-2xl font-black text-slate-900">MOVA PREMIUM</h2>
               <span className="text-xs bg-orange-100 text-orange-800 font-extrabold px-3 py-0.5 rounded-full">
-                Lifetime Access
+                One-time upgrade
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">One-time activation fee. No recurring monthly deductions.</p>
@@ -147,99 +143,37 @@ export const UpgradePage: React.FC = () => {
         {/* Payment Methods Section */}
         {user?.membershipStatus !== 'premium' ? (
           <div className="pt-6 border-t border-slate-100 space-y-4">
-            <h3 className="font-bold text-sm text-slate-900">Select Secure Payment Channel:</h3>
-
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('card')}
-                className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                  paymentMethod === 'card'
-                    ? 'border-[#0056FD] bg-blue-50/50 text-[#0056FD] ring-2 ring-blue-100 font-bold'
-                    : 'border-slate-200 hover:border-slate-300 text-slate-700'
-                }`}
-              >
-                <CreditCard className="w-5 h-5" />
-                <div>
-                  <p className="text-xs font-bold leading-tight">Card / Bank App</p>
-                  <p className="text-[10px] text-slate-400">Instant Verification</p>
-                </div>
-              </button>
-
-              <button
-                type="button"
-                onClick={() => setPaymentMethod('transfer')}
-                className={`p-3.5 rounded-2xl border text-left flex items-center gap-3 transition-all ${
-                  paymentMethod === 'transfer'
-                    ? 'border-[#0056FD] bg-blue-50/50 text-[#0056FD] ring-2 ring-blue-100 font-bold'
-                    : 'border-slate-200 hover:border-slate-300 text-slate-700'
-                }`}
-              >
-                <Building className="w-5 h-5" />
-                <div>
-                  <p className="text-xs font-bold leading-tight">Bank Transfer</p>
-                  <p className="text-[10px] text-slate-400">Dedicated Account</p>
-                </div>
-              </button>
+            <h3 className="font-bold text-sm text-slate-900">Official bank transfer</h3>
+            <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-3">
+              <p className="text-slate-600 font-medium">Transfer <strong>₦{settings.premiumFee.toLocaleString()}</strong> to the official MOVA account:</p>
+              <div className="bg-white p-3 rounded-xl border border-slate-200 space-y-3">
+                <div><span className="text-[10px] uppercase font-bold text-slate-400">Account name</span><p className="text-sm font-black text-slate-900">MOVA DIGITAL HUB</p></div>
+                <div><span className="text-[10px] uppercase font-bold text-slate-400">Account number</span><p className="text-base font-black text-slate-900 tracking-wider">3004611364</p></div>
+                <div><span className="text-[10px] uppercase font-bold text-slate-400">Bank</span><p className="text-sm font-black text-slate-900">KUDA MICROFINANCE BANK</p></div>
+                <button type="button" onClick={handleCopyAccount} className="w-full p-3 rounded-xl bg-[#0056FD] hover:bg-[#0047D4] text-white flex items-center justify-center gap-2 font-bold text-xs">
+                  {copiedAccount ? <Check className="w-4 h-4" /> : <Copy className="w-4 h-4" />}
+                  {copiedAccount ? 'Copied' : 'Copy account number'}
+                </button>
+              </div>
+              <div>
+                <label className="block text-[11px] font-bold text-slate-600 mb-1">Transfer reference</label>
+                <input type="text" value={transferRef} onChange={(e) => setTransferRef(e.target.value)} placeholder="Enter your bank transfer reference" className="w-full px-3 py-3 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]" />
+              </div>
+              <p className="text-[11px] text-slate-500">Keep your receipt. Submitting a reference does not activate Premium. The payment must be confirmed by MOVA administration.</p>
             </div>
 
-            {/* Bank Transfer Instructions */}
-            {paymentMethod === 'transfer' && (
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 text-xs space-y-3">
-                <p className="text-slate-600 font-medium">
-                  Transfer <strong>₦12,000</strong> to the MOVA dedicated account below:
-                </p>
-
-                <div className="bg-white p-3 rounded-xl border border-slate-200 flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Moniepoint Microfinance Bank</span>
-                    <p className="text-base font-black text-slate-900 tracking-wider">8123456789</p>
-                    <p className="text-[11px] text-slate-500">Account Name: MOVA DIGITAL PLATFORM</p>
-                  </div>
-                  <button
-                    onClick={handleCopyAccount}
-                    className="p-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center gap-1 font-bold text-xs"
-                  >
-                    {copiedAccount ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
-                    <span>{copiedAccount ? 'Copied' : 'Copy'}</span>
-                  </button>
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-600 mb-1">
-                    Your Bank Transfer Session ID / Narration
-                  </label>
-                  <input
-                    type="text"
-                    value={transferRef}
-                    onChange={(e) => setTransferRef(e.target.value)}
-                    placeholder="e.g. TRF-98234-OAKAKA"
-                    className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs focus:ring-2 focus:ring-[#0056FD]"
-                  />
-                </div>
-              </div>
-            )}
-
-            {/* Activate Button */}
+            {/* Continue to Telegram payment verification */}
             <button
               onClick={handlePay}
-              disabled={isProcessing}
-              className={`w-full py-4 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-98 ${
-                isProcessing
-                  ? 'bg-slate-400 cursor-not-allowed'
-                  : 'bg-[#0056FD] hover:bg-[#0047D4] shadow-blue-500/30'
-              }`}
+              disabled={false}
+              className="w-full py-4 rounded-2xl text-sm font-bold text-white flex items-center justify-center gap-2 shadow-lg transition-transform active:scale-98 bg-[#0056FD] hover:bg-[#0047D4] shadow-blue-500/30" 
             >
               <Sparkles className="w-4 h-4 text-orange-300" />
-              <span>
-                {isProcessing
-                  ? 'Verifying Payment Gateway...'
-                  : `Activate MOVA Premium (₦${settings.premiumFee.toLocaleString()})`}
-              </span>
+              <span>Continue to Telegram and submit proof</span>
             </button>
 
             <p className="text-center text-[11px] text-slate-400">
-              Payments are verified securely via PCI-DSS compliant channels. No recurring surprise charges.
+              Telegram will open with your payment details. Attach your receipt in the chat. MOVA Premium is activated only after the receiving account is checked.
             </p>
           </div>
         ) : (

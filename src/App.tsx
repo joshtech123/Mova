@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { AppProvider, useApp } from './context/AppContext';
 import { Navbar } from './components/layout/Navbar';
 import { Sidebar } from './components/layout/Sidebar';
@@ -24,16 +24,36 @@ import { LoansPage } from './pages/LoansPage';
 import { TutorialPage } from './pages/TutorialPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
+import { WelcomeGuide } from './components/onboarding/WelcomeGuide';
+import { SupportAssistant } from './components/support/SupportAssistant';
 
 const AppContent: React.FC = () => {
-  const { currentPage, user } = useApp();
+  const { currentPage, user, setCurrentPage } = useApp();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+
+  // Premium-only sections are blocked at the app router as well as in navigation.
+  // This is a frontend access gate; matching server/RLS enforcement is still required.
+  const premiumOnlyPages = ['chat', 'referral', 'talking-stage', 'loans'];
+  const isPremiumLocked = Boolean(user && !user.isPremium && premiumOnlyPages.includes(currentPage));
+
+  useEffect(() => {
+    if (isPremiumLocked) setCurrentPage('upgrade');
+  }, [isPremiumLocked, setCurrentPage]);
 
   // If on landing or auth pages without user login
   if (currentPage === 'landing' || (!user && (currentPage === 'login' || currentPage === 'register'))) {
     if (currentPage === 'login') return <AuthPage initialMode="login" />;
     if (currentPage === 'register') return <AuthPage initialMode="register" />;
     return <LandingPage />;
+  }
+
+  if (isPremiumLocked) {
+    return <UpgradePage />;
+  }
+
+  if (currentPage === 'admin' && user?.role !== 'admin') {
+    setCurrentPage('dashboard');
+    return null;
   }
 
   // Get Page Title for Navbar when inside internal pages
@@ -145,6 +165,8 @@ const AppContent: React.FC = () => {
 
       {/* Toast Notification Container */}
       <ToastContainer />
+      {user && <WelcomeGuide />}
+      {user && <SupportAssistant />}
     </div>
   );
 };

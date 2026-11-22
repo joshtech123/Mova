@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
-import { NIGERIAN_BANKS, resolveMockAccountName } from '../data/banks';
 import { Wallet, CheckCircle2, AlertCircle, ArrowRight, ShieldCheck, Clock, Building } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -8,38 +7,67 @@ export const WithdrawalPage: React.FC = () => {
   const { user, wallet, withdrawals, requestWithdrawal, settings, setCurrentPage, addToast } = useApp();
   const [selectedWallet, setSelectedWallet] = useState<'task' | 'referral' | 'welcome_pack'>('task');
   const [amount, setAmount] = useState<string>('');
-  const [bankName, setBankName] = useState<string>('Access Bank');
+  const [bankName, setBankName] = useState<string>('');
+  const [bankCode, setBankCode] = useState<string>('');
+  const [banks, setBanks] = useState<Array<{name:string;code:string}>>([]);
+  const [banksLoading, setBanksLoading] = useState<boolean>(true);
+  const [verifiedFor, setVerifiedFor] = useState<string>('');
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [accountName, setAccountName] = useState<string>('');
   const [isVerifyingAccount, setIsVerifyingAccount] = useState<boolean>(false);
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    let cancelled = false;
+    const loadBanks = async () => {
+      setBanksLoading(true);
+      try {
+        const response = await fetch('/api/banks');
+        const data = await response.json();
+        if (!response.ok || !Array.isArray(data.banks)) throw new Error(data.error || 'Could not load banks.');
+        if (!cancelled) setBanks(data.banks);
+      } catch (error) {
+        if (!cancelled) addToast({ type: 'error', title: 'Bank list unavailable', message: error instanceof Error ? error.message : 'Please refresh and try again.' });
+      } finally {
+        if (!cancelled) setBanksLoading(false);
+      }
+    };
+    void loadBanks();
+    return () => { cancelled = true; };
+  }, []);
 
   // Available balance for currently selected wallet
   let sourceBalance = wallet.taskBalance;
   if (selectedWallet === 'referral') sourceBalance = wallet.referralBalance;
   if (selectedWallet === 'welcome_pack') sourceBalance = wallet.welcomePackBalance;
 
-  const handleVerifyAccount = () => {
-    if (accountNumber.length !== 10) {
-      addToast({
-        type: 'error',
-        title: 'Invalid Account Number',
-        message: 'Nigerian bank account numbers must be exactly 10 digits.',
-      });
+  const handleVerifyAccount = async () => {
+    if (accountNumber.length !== 10 || !bankCode || !bankName) {
+      addToast({ type: 'error', title: 'Invalid Account Number', message: 'Nigerian bank account numbers must be exactly 10 digits.' });
       return;
     }
-
     setIsVerifyingAccount(true);
-    setTimeout(() => {
-      const resolved = resolveMockAccountName(accountNumber, bankName, user?.fullName || 'Oakaka Joshua');
-      setAccountName(resolved);
-      setIsVerifyingAccount(false);
-      addToast({
-        type: 'success',
-        title: 'Account Verified via NIBSS',
-        message: `Account Name: ${resolved}`,
+    setAccountName('');
+    try {
+      const response = await fetch('/api/resolve-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accountNumber, bankName, bankCode }),
       });
-    }, 900);
+      const data = await response.json();
+      if (!response.ok || !data.accountName) throw new Error(data.error || 'Account lookup failed.');
+      setAccountName(data.accountName);
+      setVerifiedFor(`${accountNumber}:${bankCode}:${data.accountName}`);
+      addToast({ type: 'success', title: 'Account name confirmed', message: data.accountName });
+    } catch (error) {
+      addToast({
+        type: 'error',
+        title: 'Account verification unavailable',
+        message: error instanceof Error ? error.message : 'Please try again later.',
+      });
+    } finally {
+      setIsVerifyingAccount(false);
+    }
   };
 
   const handleWithdraw = (e: React.FormEvent) => {
@@ -51,24 +79,22 @@ export const WithdrawalPage: React.FC = () => {
       return;
     }
 
-    if (!accountName) {
+    if (!accountName || verifiedFor !== `${accountNumber}:${bankCode}:${accountName}`) {
       addToast({ type: 'error', title: 'Verify Bank Account', message: 'Please click "Verify bank account" before submitting.' });
       return;
     }
 
     setIsSubmitting(true);
-    setTimeout(() => {
-      const res = requestWithdrawal(numAmount, selectedWallet, bankName, accountNumber, accountName);
-      setIsSubmitting(false);
-      if (res.success) {
-        setAmount('');
-        try {
-          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-        } catch {
-          // ignore
-        }
+    const res = requestWithdrawal(numAmount, selectedWallet, bankName, accountNumber, accountName);
+    setIsSubmitting(false);
+    if (res.success) {
+      setAmount('');
+      try {
+        confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
+      } catch {
+        // ignore
       }
-    }, 1200);
+    }
   };
 
   return (
@@ -196,13 +222,17 @@ export const WithdrawalPage: React.FC = () => {
             <select
               value={bankName}
               onChange={(e) => {
-                setBankName(e.target.value);
+                const selected = banks.find((b) => b.name === e.target.value);
+                setBankName(selected?.name || '');
+                setBankCode(selected?.code || '');
                 setAccountName('');
+                setVerifiedFor('');
               }}
               className="w-full px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-medium focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
             >
-              {NIGERIAN_BANKS.map((b) => (
-                <option key={b.name} value={b.name}>
+              <option value="" disabled>{banksLoading ? 'Loading official bank list...' : 'Select your bank'}</option>
+              {banks.map((b) => (
+                <option key={`${b.code}-${b.name}`} value={b.name}>
                   {b.name}
                 </option>
               ))}
@@ -221,6 +251,7 @@ export const WithdrawalPage: React.FC = () => {
                 onChange={(e) => {
                   setAccountNumber(e.target.value.replace(/\D/g, ''));
                   setAccountName('');
+                  setVerifiedFor('');
                 }}
                 placeholder="0123456789"
                 className="flex-1 px-4 py-3 bg-white border border-slate-200 rounded-2xl text-sm font-mono tracking-wider focus:outline-hidden focus:ring-2 focus:ring-[#0056FD]"
@@ -228,7 +259,7 @@ export const WithdrawalPage: React.FC = () => {
               <button
                 type="button"
                 onClick={handleVerifyAccount}
-                disabled={accountNumber.length !== 10 || isVerifyingAccount}
+                disabled={accountNumber.length !== 10 || !bankCode || isVerifyingAccount || banksLoading}
                 className={`px-4 py-3 rounded-2xl text-xs font-bold shrink-0 transition-colors ${
                   accountNumber.length === 10
                     ? 'bg-slate-100 hover:bg-slate-200 text-slate-800'
@@ -240,11 +271,16 @@ export const WithdrawalPage: React.FC = () => {
             </div>
 
             {/* Resolved Account Name Display */}
-            {accountName && (
+            {accountName && verifiedFor === `${accountNumber}:${bankCode}:${accountName}` && (
               <div className="mt-2 p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-bold flex items-center gap-2">
                 <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Account Name: {accountName}</span>
+                <span>Paystack returned account name: {accountName}</span>
               </div>
+            )}
+            {accountName && (
+              <p className="mt-2 text-[11px] leading-5 text-amber-700">
+                Before requesting a payout, make sure this is exactly the account holder's name. If it belongs to someone else, do not continue. Check the account number and bank selection.
+              </p>
             )}
           </div>
 

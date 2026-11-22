@@ -18,7 +18,7 @@ export const TutorialPage: React.FC = () => {
       id: 1,
       title: '2. Activating MOVA Premium (₦12,000)',
       duration: '3:40',
-      summary: 'Step-by-step payment guide using instant debit card or dedicated bank transfer.',
+      summary: 'Step-by-step guide to making an official MOVA bank transfer.',
       videoUrl: 'https://images.unsplash.com/photo-1559526324-4b87b5e36e44?w=1200&auto=format&fit=crop&q=80',
     },
     {

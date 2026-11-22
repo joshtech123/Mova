@@ -65,25 +65,18 @@ export const AuthModal: React.FC<AuthModalProps> = ({
     setMode('verify_otp');
   };
 
-  const handleVerifyOtp = (e: React.FormEvent) => {
+  const handleVerifyOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
-    register({
-      fullName,
-      username,
-      email,
-      phone,
-      country,
-      password,
+    const ok = await register({
+      fullName, username, email, phone, country, password,
       referralCode: referralCode || undefined,
-    });
-
-    onClose();
-    setActiveNavTab('dashboard');
+    } as any);
+    if (ok) { onClose(); setActiveNavTab('dashboard'); }
   };
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg(null);
 
@@ -92,9 +85,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({
       return;
     }
 
-    login(loginInput);
-    onClose();
-    setActiveNavTab('dashboard');
+    const ok = await login(loginInput, password);
+    if (ok) { onClose(); setActiveNavTab('dashboard'); }
   };
 
   const handleQuickDemo = (userId: string) => {

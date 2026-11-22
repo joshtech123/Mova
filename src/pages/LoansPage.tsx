@@ -8,10 +8,10 @@ export const LoansPage: React.FC = () => {
   const { user, loans, applyForLoan, setCurrentPage, addToast } = useApp();
   const [loanAmount, setLoanAmount] = useState<number>(100000);
   const [tenureMonths, setTenureMonths] = useState<number>(6);
-  const [monthlyIncome, setMonthlyIncome] = useState<string>('250000');
-  const [employmentStatus, setEmploymentStatus] = useState<string>('Employed (Private Sector)');
-  const [bankName, setBankName] = useState<string>('GTBank');
-  const [accountNumber, setAccountNumber] = useState<string>('0123456789');
+  const [monthlyIncome, setMonthlyIncome] = useState<string>('');
+  const [employmentStatus, setEmploymentStatus] = useState<string>('');
+  const [bankName, setBankName] = useState<string>('');
+  const [accountNumber, setAccountNumber] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   // Financial calculations
@@ -28,18 +28,8 @@ export const LoansPage: React.FC = () => {
       return;
     }
 
-    setIsSubmitting(true);
-    setTimeout(() => {
-      const res = applyForLoan(loanAmount, tenureMonths, bankName, accountNumber, incomeNum, employmentStatus);
-      setIsSubmitting(false);
-      if (res.success) {
-        try {
-          confetti({ particleCount: 50, spread: 60, origin: { y: 0.6 } });
-        } catch {
-          // ignore
-        }
-      }
-    }, 1200);
+    const res = applyForLoan(loanAmount, tenureMonths, bankName, accountNumber, incomeNum, employmentStatus);
+    addToast({ type: res.success ? 'success' : 'error', title: res.success ? 'Application received' : 'Loan application unavailable', message: res.message });
   };
 
   return (

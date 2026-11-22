@@ -33,7 +33,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
   const [otpCode, setOtpCode] = useState('');
   const [error, setError] = useState('');
 
-  const handleRegister = (e: React.FormEvent) => {
+  const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
@@ -52,13 +52,8 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
       return;
     }
 
-    // Go to OTP verification step
-    setMode('verify');
-    addToast({
-      type: 'info',
-      title: 'Verification Code Sent',
-      message: `A 6-digit confirmation code was sent to ${email}. Enter code 123456 to verify.`,
-    });
+    const selectedCountry = COUNTRIES.find((c) => c.name === country) || COUNTRIES[0];
+    await register({ fullName, username, email, phone, country, countryCode: selectedCountry.code, referredBy: referralCode.trim() || undefined, password } as any);
   };
 
   const handleVerifyOtp = (e: React.FormEvent) => {
@@ -81,7 +76,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
     });
   };
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     if (!email || !password) {
@@ -89,22 +84,16 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
       return;
     }
 
-    login(email);
-    setCurrentPage('dashboard');
+    await login(email, password);
   };
 
-  const handleForgotPassword = (e: React.FormEvent) => {
+  const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) {
       setError('Please enter your registered email.');
       return;
     }
-    addToast({
-      type: 'success',
-      title: 'Password Reset Link Sent',
-      message: `Password reset instructions have been dispatched to ${email}.`,
-    });
-    setMode('login');
+    setError('Password reset is not enabled yet. Please contact MOVA support.');
   };
 
   return (
@@ -219,31 +208,7 @@ export const AuthPage: React.FC<AuthPageProps> = ({ initialMode = 'login' }) => 
                 </button>
               </div>
 
-              <div className="mt-4 pt-4 border-t border-slate-100 text-center">
-                <p className="text-xs text-slate-500 mb-2">Quick Demo Access:</p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('oakaka@mova.app');
-                      setPassword('password123');
-                    }}
-                    className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-slate-200 rounded-xl text-xs font-semibold text-slate-700"
-                  >
-                    Fill User Demo
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setEmail('admin@mova.app');
-                      setPassword('admin123');
-                    }}
-                    className="flex-1 py-1.5 px-2 bg-purple-50 hover:bg-purple-100 rounded-xl text-xs font-semibold text-purple-700 border border-purple-200"
-                  >
-                    Fill Admin Demo
-                  </button>
-                </div>
-              </div>
+              <p className="mt-4 text-center text-xs text-slate-500">Demo accounts have been removed. Real sign-in will be enabled when MOVA authentication is connected.</p>
             </form>
           )}
 

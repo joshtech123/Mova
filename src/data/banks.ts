@@ -28,16 +28,3 @@ export const NIGERIAN_BANKS: Bank[] = [
   { name: 'VFD Microfinance Bank', code: '566' },
 ];
 
-export function resolveMockAccountName(accountNumber: string, bankName: string, userFullName: string): string {
-  if (accountNumber.length !== 10) return '';
-  // Provide deterministic realistic bank resolution matching the user or realistic Nigerian names
-  if (accountNumber.endsWith('77') || accountNumber.endsWith('12')) {
-    return userFullName.toUpperCase();
-  }
-  const surnames = ['ADEBAYO', 'OKAFOR', 'BALOGUN', 'CHUKWU', 'DANJUMA', 'IBRAHIM', 'EZE', 'OGUNDIPE'];
-  const firstnames = ['EMMANUEL', 'CHINONSO', 'FATIMA', 'OLUWASEUN', 'BLESSING', 'MICHAEL', 'AISHA'];
-  const num = parseInt(accountNumber.slice(-2), 10) || 5;
-  const sIndex = num % surnames.length;
-  const fIndex = (num * 3) % firstnames.length;
-  return `${surnames[sIndex]} ${firstnames[fIndex]}`;
-}

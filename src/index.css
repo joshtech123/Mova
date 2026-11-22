@@ -36,3 +36,25 @@
 ::-webkit-scrollbar-thumb:hover {
   background: #94a3b8;
 }
+
+/* MOVA dark theme: neutral surfaces and text invert while brand accents remain unchanged. */
+html[data-theme="dark"] body { background:#071225 !important; color:#e5edf8 !important; }
+html[data-theme="dark"] .bg-white { background-color:#101f35 !important; }
+html[data-theme="dark"] .bg-slate-50 { background-color:#0b192c !important; }
+html[data-theme="dark"] .bg-slate-100 { background-color:#142640 !important; }
+html[data-theme="dark"] .text-slate-950,
+html[data-theme="dark"] .text-slate-900,
+html[data-theme="dark"] .text-slate-800 { color:#f1f5fb !important; }
+html[data-theme="dark"] .text-slate-700,
+html[data-theme="dark"] .text-slate-600 { color:#c4d1e2 !important; }
+html[data-theme="dark"] .text-slate-500,
+html[data-theme="dark"] .text-slate-400 { color:#91a4bd !important; }
+html[data-theme="dark"] .border-slate-100,
+html[data-theme="dark"] .border-slate-200,
+html[data-theme="dark"] .border-slate-300 { border-color:#263b58 !important; }
+html[data-theme="dark"] input,
+html[data-theme="dark"] select,
+html[data-theme="dark"] textarea { background:#0b192c; color:#f1f5fb; border-color:#334a68; }
+html[data-theme="dark"] .bg-blue-50 { background:#102b50 !important; }
+html[data-theme="dark"] .bg-emerald-50 { background:#10352d !important; }
+html[data-theme="dark"] .bg-amber-50 { background:#3a2b12 !important; }

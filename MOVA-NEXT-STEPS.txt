@@ -1,0 +1,19 @@
+MOVA AUTHENTICATION + WELCOME BONUS IMPLEMENTATION
+
+Confirmed welcome bonus rule:
+- NGN 9,100 display-only Welcome Bonus.
+- Not withdrawable.
+- Not included in available wallet balance or withdrawal calculations.
+- Created once on member account creation, not on every login.
+
+Database migration:
+supabase/migrations/20261121_welcome_bonus_and_profile_trigger.sql
+
+This migration adds the welcome_bonus_kobo profile field and creates a profile
+for each new Supabase Auth user. It does not activate Premium or create spendable
+wallet funds.
+
+Important:
+The frontend still needs Supabase Auth wiring and a dashboard UI binding to
+profiles.welcome_bonus_kobo. Do not claim production authentication is live until
+that code is completed and tested against the Supabase project.
